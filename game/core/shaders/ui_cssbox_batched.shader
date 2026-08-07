@@ -779,8 +779,11 @@ PS
 				vImage *= bgTint;
 			#endif
 
-			col.rgb = lerp( col.rgb, vImage.rgb, saturate( vImage.a + ( 1 - col.a ) ) );
-			col.a = max( col.a, vImage.a );
+			// Source-over: weight by the image's share of the combined alpha, so a transparent
+			// texel can't tint a translucent box and vImage.a alone wouldn't darken it either
+			float overAlpha = vImage.a + col.a * ( 1 - vImage.a );
+			col.rgb = lerp( col.rgb, vImage.rgb, overAlpha > 0 ? vImage.a / overAlpha : 0 );
+			col.a = overAlpha;
 
 			// A texture's alpha is a mask - a glyph's edge lives there - so it's coverage. A gradient's isn't.
 			if ( inst.TextureIndex > 0 )
