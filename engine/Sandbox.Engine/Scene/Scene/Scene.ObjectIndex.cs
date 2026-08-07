@@ -152,10 +152,16 @@ public partial class Scene : GameObject
 	/// Get all objects of this type. This could be a component or a GameObjectSystem, or other stuff in the future.
 	/// </summary>
 	/// <remarks>
-	/// Allocates once per call. Engine code should prefer <see cref="GetAll{T}(List{T})"/>.
+	/// Allocates once per call. Engine code should prefer <see cref="Query{T}"/> for direct iteration.
 	/// </remarks>
 	[Pure]
-	public IEnumerable<T> GetAll<T>() => new SceneObjectEnumerable<T>( this );
+	public IEnumerable<T> GetAll<T>() => Query<T>();
+
+	/// <summary>
+	/// Gets all objects of this type as a struct enumerable. Direct <c>foreach</c> iteration is allocation-free.
+	/// </summary>
+	[Pure]
+	internal SceneObjectQuery<T> Query<T>() => new( this );
 
 	/// <summary>
 	/// Get all objects of this type. This could be a component or a GameObjectSystem, or other stuff in the future.
@@ -200,32 +206,39 @@ public partial class Scene : GameObject
 }
 
 /// <summary>
-/// What <see cref="Scene.GetAll{T}()"/> returns. Hand written rather than a yield iterator, which costs the same
-/// allocation but is ~25% slower to walk. Doubles as its own enumerator, so one foreach allocates once.
+/// Struct query used by engine code so direct <c>foreach</c> iteration doesn't allocate.
 /// </summary>
-sealed class SceneObjectEnumerable<T> : IEnumerable<T>, IEnumerator<T>
+internal readonly struct SceneObjectQuery<T> : IEnumerable<T>
 {
 	private readonly Scene scene;
-	private HashSetEx<object>.LockedEnumerator inner;
-	private bool taken;
-	private bool started;
-	private bool holdsLock;
 
-	public SceneObjectEnumerable( Scene scene )
+	public SceneObjectQuery( Scene scene )
 	{
 		this.scene = scene;
 	}
 
-	public IEnumerator<T> GetEnumerator()
+	public SceneObjectEnumerator<T> GetEnumerator() => new( scene );
+	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new SceneObjectEnumerator<T>( scene );
+	System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => new SceneObjectEnumerator<T>( scene );
+}
+
+internal struct SceneObjectEnumerator<T> : IEnumerator<T>
+{
+	private readonly Scene scene;
+	private HashSetEx<object>.LockedEnumerator inner;
+	private bool started;
+	private bool holdsLock;
+	private bool disposed;
+
+	public SceneObjectEnumerator( Scene scene )
 	{
-		if ( taken )
-			return new SceneObjectEnumerable<T>( scene ).GetEnumerator();
-
-		taken = true;
-		return this;
+		this.scene = scene;
+		inner = default;
+		started = false;
+		holdsLock = false;
+		disposed = false;
+		Current = default;
 	}
-
-	System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 
 	public T Current { get; private set; }
 	object System.Collections.IEnumerator.Current => Current;
@@ -265,6 +278,9 @@ sealed class SceneObjectEnumerable<T> : IEnumerable<T>, IEnumerator<T>
 	// foreach disposes even if nothing was enumerated, and a default LockedEnumerator has no set to release.
 	public void Dispose()
 	{
+		if ( disposed ) return;
+
+		disposed = true;
 		if ( holdsLock ) inner.Dispose();
 	}
 

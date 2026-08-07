@@ -7,12 +7,17 @@ sealed class TerrainTraceSystem : GameObjectSystem<TerrainTraceSystem>, GameObje
 	{
 	}
 
+	private readonly List<Terrain> terrains = new();
+
 	public void DoTrace( in SceneTrace trace, List<SceneTraceResult> results )
 	{
 		if ( !trace.IncludeRenderMeshes || trace.IncludePhysicsWorld )
 			return;
 
-		foreach ( var terrain in Scene.GetAllComponents<Terrain>() )
+		terrains.Clear();
+		Scene.GetAll( terrains );
+
+		foreach ( var terrain in terrains )
 		{
 			if ( TryTraceTerrain( terrain, trace, out var result ) )
 				results.Add( result );
@@ -26,7 +31,10 @@ sealed class TerrainTraceSystem : GameObjectSystem<TerrainTraceSystem>, GameObje
 
 		SceneTraceResult? best = null;
 
-		foreach ( var terrain in Scene.GetAllComponents<Terrain>() )
+		terrains.Clear();
+		Scene.GetAll( terrains );
+
+		foreach ( var terrain in terrains )
 		{
 			if ( !TryTraceTerrain( terrain, trace, out var result ) )
 				continue;
