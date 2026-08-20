@@ -56,7 +56,7 @@ public static class RemoteDeps
 		new( "libyuv", "4afb965", "thirdparty/libyuv" ) { Rebuild = 2 },
 		new( "svtav1", "v4.1.0", "thirdparty/svtav1" ) { Rebuild = 2 },
 		new( "slang", "v2026.14", "thirdparty/slang" ) { Rebuild = 2 },
-		new( "glslang", "14.3.0", "thirdparty/glslang" ) { Rebuild = 2 },
+		new( "spirv-tools", "v2026.3", "thirdparty/spirv-tools" ) { Rebuild = 2 },
 		new( "dxc", "v1.9.2607", "thirdparty/dxc" ) { Rebuild = 2 },
 		new( "openexr", "v2.5.8", "thirdparty/openexr" ) { Rebuild = 2 },
 		new( "alembic", "1.7.16", "thirdparty/alembic" ) { Rebuild = 2 },
