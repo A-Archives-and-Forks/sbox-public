@@ -271,7 +271,10 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		if ( borderless )
 			PanelWindowNative.EnableCustomChrome( _window );
 
-		_swapChain = PanelWindowNative.CreateSwapChain( _window, (int)RenderSettings.Instance.AntiAliasQuality.ToEngine(), VSync );
+		// No MSAA. Panel UI is 2D and alpha blended - it antialiases itself in the shaders, and a
+		// multisampled swapchain costs a resolve every frame plus the multisampled colour and depth
+		// images behind it (23MB for a 1100x660 window at 4x, more than the window's own buffers)
+		_swapChain = PanelWindowNative.CreateSwapChain( _window, (int)RenderMultisampleType.RENDER_MULTISAMPLE_NONE, VSync );
 		_swapChainSize = Size;
 
 		_world = new SceneWorld();
@@ -284,6 +287,9 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 			EnablePostProcessing = false,
 			ZNear = 1,
 			ZFar = 1000,
+
+			// A window is panels and nothing else - it doesn't need the scene pipeline
+			UIOnly = true,
 		};
 
 		Surface = new UISurface();
