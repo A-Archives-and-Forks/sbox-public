@@ -48,8 +48,10 @@ public class PanelAppSystem : AppSystem
 		_appSystem.SetSteamAppId( (uint)Application.AppId );
 
 		// No Steam - it costs startup time and injects the Fossilize pipeline layer into the
-		// device. No VR - nothing here renders in stereo.
-		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr";
+		// device. No VR - nothing here renders in stereo. -panelapp tells the engine nobody here
+		// is drawing a scene, so the fixed buffers and atlases that exist for one are sized down
+		// to what a scene panel might want instead of what a map needs.
+		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr -panelapp";
 
 		// Tools mode creates the render device but no window - our windows are our own
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
