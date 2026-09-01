@@ -421,16 +421,14 @@
 // In an OS popup window the compositor rounds and borders the window itself - our own
 // radius and border would double up inside its clip
 .os-popup .dropdown { border-radius: 0; border: none; }
-// The dropdown control itself - a box that opens a menu. Text reads from the left, the
-// chevron sits on the right
+// Dropdown menus flow vertically through their items.
 .dropdown
 {
-	flex-direction: row;
-	align-items: center;
+	flex-direction: column;
+	align-items: stretch;
 	flex-shrink: 0;
 	min-width: 160px;
-	height: 34px;
-	padding: 0 30px 0 11px;
+	padding: 6px;
 	border-radius: 8px;
 	background-color: $raised;
 	border: 1px solid $raised;
@@ -519,7 +517,7 @@
 .style-light .textentry:focus { border-color: $accent; }
 .style-light .textentry iconpanel { color: $l-text-faint; }
 .style-light .textentry .content-label { color: $l-text; }
-.style-light .textentry .content-label.placeholder { color: $l-text-faint; }
+.style-light .textentry .content-label.placeholder { color: $l-text-muted; }
 
 .style-light .buttongroup { background-color: $l-raised; border-color: $l-line; }
 .style-light .buttongroup .button { color: $l-text-muted; }

@@ -356,7 +356,15 @@ class LauncherWindow : Panel
 		var body = content.AddChild<Panel>();
 		body.AddClass( "body" );
 
-		projectsPanel = body.AddChild<Panel>();
+		var projectColumn = body.AddChild<Panel>();
+		projectColumn.AddClass( "project-column" );
+
+		var projectLabel = projectColumn.AddChild<Panel>();
+		projectLabel.AddClass( "sectionlabel" );
+		projectLabel.Add.Label( page == Page.Samples ? "SAMPLES" : "LOCAL PROJECTS", "text" );
+		projectLabel.AddChild<Panel>().AddClass( "rule" );
+
+		projectsPanel = projectColumn.AddChild<Panel>();
 		projectsPanel.AddClass( "projects" );
 
 		_ = FillNewsAsync( body );
@@ -405,13 +413,16 @@ class LauncherWindow : Panel
 		label.Add.Label( "LATEST NEWS", "text" );
 		label.AddChild<Panel>().AddClass( "rule" );
 
+		var newsList = rail.AddChild<Panel>();
+		newsList.AddClass( "news-list" );
+
 		foreach ( var post in posts )
 		{
 			var url = post.Url;
 			if ( url is not null && !url.StartsWith( "http" ) ) url = $"{Global.BackendUrl}{url}";
 			if ( url is not null ) url += url.Contains( '?' ) ? "&utm_source=launcher" : "?utm_source=launcher";
 
-			var card = rail.Add.Panel( "newscard" );
+			var card = newsList.Add.Panel( "newscard" );
 			card.AddEventListener( "onclick", () => Editor.EditorUtility.OpenFolder( url ) );
 
 			if ( !string.IsNullOrEmpty( post.Media ) )
@@ -444,7 +455,7 @@ class LauncherWindow : Panel
 			new( "Most Recent", () => SetSort( SortMethod.Date ), "calendar_month" ),
 			new( "Name", () => SetSort( SortMethod.Name ), "sort_by_alpha" ),
 			new( "Organization", () => SetSort( SortMethod.Org ), "groups" ),
-		} );
+		}, sortButton );
 	}
 
 	void SetSort( SortMethod method )
@@ -514,7 +525,7 @@ class LauncherWindow : Panel
 			topHit = local.OrderByDescending( x => x.Pinned ).FirstOrDefault();
 
 			AddGroup( "Pinned", local.Where( x => x.Pinned ) );
-			AddGroup( "Local Projects", local.Where( x => !x.Pinned ) );
+			AddGroup( null, local.Where( x => !x.Pinned ) );
 		}
 
 		if ( projectsPanel.ChildrenCount == 0 )
@@ -596,13 +607,11 @@ class LauncherWindow : Panel
 		var org = project.Config.Org == "local" ? "Local" : project.Package?.Org.Title ?? project.Config.Org;
 		text.Add.Label( $"{org} · {RelativeTime( project.LastOpened.LocalDateTime )}", "sub" );
 
-		row.AddChild<Panel>().AddClass( "grow" );
-
 		// Lit while an editor is open on this project - see WatchRunningEditorsAsync
 		var runningTag = row.AddChild<Panel>();
 		runningTag.AddClass( "runningtag" );
 		runningTag.Add.Icon( "circle", "icon" );
-		runningTag.Add.Label( "Running" );
+		runningTag.Add.Label( "Running", "running-label" );
 
 		var path = ProjectPath( project );
 		rowProjects[row] = path;
