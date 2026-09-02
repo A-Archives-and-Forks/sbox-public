@@ -26,17 +26,17 @@ public class PivotButtonsWidget : Widget
 	}
 
 	[Shortcut( "mesh.previous-pivot", "Shift+MWheelDown", typeof( SceneViewWidget ) )]
-	public void PreviousPivot() => _tool.PreviousPivot();
+	public void PreviousPivot() => _tool.Pivot.Previous();
 
 	[Shortcut( "mesh.next-pivot", "Shift+MWheelUp", typeof( SceneViewWidget ) )]
-	public void NextPivot() => _tool.NextPivot();
+	public void NextPivot() => _tool.Pivot.Next();
 
 	[Shortcut( "mesh.center-pivot", "Ctrl+Home", typeof( SceneViewWidget ) )]
-	public void CenterPivot() => _tool.CenterPivot();
+	public void CenterPivot() => _tool.Pivot.Center();
 
 	[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
-	public void ClearPivot() => _tool.ClearPivot();
+	public void ClearPivot() => _tool.Pivot.Clear();
 
 	[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneViewWidget ) )]
-	public void ZeroPivot() => _tool.ZeroPivot();
+	public void ZeroPivot() => _tool.Pivot.Zero();
 }

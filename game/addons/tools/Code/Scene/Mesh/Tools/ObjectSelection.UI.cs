@@ -225,12 +225,12 @@ partial class ObjectSelection
 			{
 				foreach ( var mesh in _meshes )
 				{
-					SetMeshOrigin( mesh, _tool.Pivot );
+					SetMeshOrigin( mesh, _tool.Pivot.Position );
 				}
 
 				foreach ( var go in boundsObjects )
 				{
-					SetObjectOrigin( go, _tool.Pivot );
+					SetObjectOrigin( go, _tool.Pivot.Position );
 				}
 			}
 		}
@@ -251,7 +251,7 @@ partial class ObjectSelection
 				}
 			}
 
-			_tool.ClearPivot();
+			_tool.Pivot.Reset();
 		}
 
 		[Shortcut( "mesh.bake-scale", "", typeof( SceneViewWidget ) )]

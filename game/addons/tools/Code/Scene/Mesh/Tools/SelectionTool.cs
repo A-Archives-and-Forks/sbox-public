@@ -1,4 +1,5 @@
 using HalfEdgeMesh;
+using Sandbox.Helpers;
 
 namespace Editor.MeshEditor;
 
@@ -39,72 +40,41 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public virtual void SetMoveMode( MoveMode mode ) { }
 
-	public Vector3 Pivot { get; set; }
-
-	int _pivotIndex = 0;
+	SelectionPivot _pivot;
 
 	/// <summary>
-	/// The pivot positions we cycle through - the centre of the selection, its eight corners,
-	/// then the centre of its top and bottom faces.
+	/// The point transforms happen around.
 	/// </summary>
-	static IReadOnlyList<Vector3> GetPivots( BBox box )
+	public SelectionPivot Pivot => _pivot ??= new SelectionPivot( this );
+
+	internal void OnPivotChanged() => Tool?.MoveMode?.OnBegin( this );
+
+	protected void SubscribeUndo()
 	{
-		var mins = box.Mins;
-		var maxs = box.Maxs;
-		var center = box.Center;
+		UnsubscribeUndo();
 
-		return
-		[
-			center,
-
-			new Vector3( mins.x, mins.y, mins.z ),
-			new Vector3( maxs.x, mins.y, mins.z ),
-			new Vector3( mins.x, maxs.y, mins.z ),
-			new Vector3( maxs.x, maxs.y, mins.z ),
-
-			new Vector3( mins.x, mins.y, maxs.z ),
-			new Vector3( maxs.x, mins.y, maxs.z ),
-			new Vector3( mins.x, maxs.y, maxs.z ),
-			new Vector3( maxs.x, maxs.y, maxs.z ),
-
-			new Vector3( center.x, center.y, mins.z ),
-			new Vector3( center.x, center.y, maxs.z ),
-		];
+		Undo.OnUndo += OnUndoRedo;
+		Undo.OnRedo += OnUndoRedo;
 	}
 
-	void StepPivot( int direction )
+	protected void UnsubscribeUndo()
 	{
-		var box = CalculateSelectionBounds();
-		if ( box.Size.Length <= 0 ) return;
-
-		var pivots = GetPivots( box );
-
-		_pivotIndex = (_pivotIndex + direction + pivots.Count) % pivots.Count;
-		SetPivot( pivots[_pivotIndex], _pivotIndex );
+		Undo.OnUndo -= OnUndoRedo;
+		Undo.OnRedo -= OnUndoRedo;
 	}
 
-	void SetPivot( Vector3 pivot, int index )
-	{
-		Pivot = pivot;
-		_pivotIndex = index;
+	UndoSystem Undo => SceneEditorSession.Active.UndoSystem;
 
-		Tool?.MoveMode?.OnBegin( this );
+	void OnUndoRedo( UndoSystem.Entry _ )
+	{
+		OnAfterUndoRedo();
+
+		Pivot.Update();
+
+		OnPivotChanged();
 	}
 
-	public void PreviousPivot() => StepPivot( -1 );
-	public void NextPivot() => StepPivot( 1 );
-
-	public void ClearPivot() => SetPivot( CalculateSelectionOrigin(), 0 );
-
-	public void ZeroPivot() => SetPivot( default, 0 );
-
-	public void CenterPivot()
-	{
-		var box = CalculateSelectionBounds();
-		if ( box.Size.Length <= 0 ) return;
-
-		SetPivot( box.Center, 0 );
-	}
+	protected virtual void OnAfterUndoRedo() { }
 
 	public bool DragStarted { get; private set; }
 
@@ -132,6 +102,9 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public void StartDrag()
 	{
+		if ( !DragStarted )
+			Pivot.BeginDrag();
+
 		DragStarted = true;
 
 		OnStartDrag();
@@ -147,6 +120,9 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 		DragStarted = false;
 
 		OnEndDrag();
+
+		// After OnEndDrag, so the transform's undo entry exists for the pivot move to fold into.
+		Pivot.EndDrag();
 	}
 
 	protected virtual void OnStartDrag()
@@ -367,6 +343,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			var transform = entry.Key.Transform;
 			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
 		}
+
+		Pivot.Drag( delta );
 	}
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
@@ -434,14 +412,12 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		Selection.OnItemAdded += OnMeshSelectionChanged;
 		Selection.OnItemRemoved += OnMeshSelectionChanged;
 
-		var undo = SceneEditorSession.Active.UndoSystem;
-		undo.OnUndo += OnUndoRedo;
-		undo.OnRedo += OnUndoRedo;
-
 		RestorePreviousSelection<T>();
 		SelectElements();
 		CalculateSelectionVertices();
-		OnMeshSelectionChanged();
+		Pivot.Reset();
+
+		SubscribeUndo();
 	}
 
 	public override void OnDisabled()
@@ -451,16 +427,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		EndBoxSelectUndoScope();
 
-		var undo = SceneEditorSession.Active.UndoSystem;
-		undo.OnUndo -= OnUndoRedo;
-		undo.OnRedo -= OnUndoRedo;
+		UnsubscribeUndo();
 
 		SaveCurrentSelection<T>();
-	}
-
-	void OnUndoRedo( object _ )
-	{
-		OnMeshSelectionChanged();
 	}
 
 	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
@@ -534,8 +503,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
 		}
-
-		Pivot = CalculateSelectionOrigin();
 	}
 
 	public override void AlignDown( bool useLocalDown )
@@ -573,14 +540,13 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
 		}
-
-		Pivot = CalculateSelectionOrigin();
 	}
 
 	public override void OnUpdate()
 	{
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
 
+		Pivot.Update();
 		UpdateMoveMode();
 
 		if ( !IsBoxSelecting )
@@ -615,8 +581,14 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( _meshSelectionDirty )
 		{
+			var previous = _vertexSelection.ToArray();
+
 			CalculateSelectionVertices();
-			OnMeshSelectionChanged();
+
+			// Undo restores the selection, firing add and remove for the same elements.
+			// That isn't a change, so the pivot stays where it is.
+			if ( !_vertexSelection.SetEquals( previous ) )
+				Pivot.Reset();
 		}
 
 		HandleGlobalMaterialOperations();
@@ -830,29 +802,35 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		if ( components.Any() == false ) return;
 
 		using var scope = SceneEditorSession.Scope();
-		using var undoScope = SceneEditorSession.Active.UndoScope( "Nudge Vertices" ).WithComponentChanges( components ).Push();
 
 		var rotation = CalculateSelectionBasis();
 		var delta = Gizmo.Nudge( rotation, direction );
 
-		if ( Gizmo.IsShiftPressed )
+		Pivot.BeginDrag();
+
+		using ( SceneEditorSession.Active.UndoScope( "Nudge Vertices" ).WithComponentChanges( components ).Push() )
 		{
-			ExtrudeSelection( -delta );
-		}
-		else
-		{
-			foreach ( var vertex in _vertexSelection )
+			if ( Gizmo.IsShiftPressed )
 			{
-				var transform = vertex.Transform;
-				var position = vertex.Component.Mesh.GetVertexPosition( vertex.Handle );
-				position = transform.PointToWorld( position ) - delta;
-				vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( position ) );
+				ExtrudeSelection( -delta );
+			}
+			else
+			{
+				foreach ( var vertex in _vertexSelection )
+				{
+					var transform = vertex.Transform;
+					var position = vertex.Component.Mesh.GetVertexPosition( vertex.Handle );
+					position = transform.PointToWorld( position ) - delta;
+					vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( position ) );
+				}
+
+				UpdateTexturesAfterNudge();
 			}
 
-			UpdateTexturesAfterNudge();
+			Pivot.Translate( -delta );
 		}
 
-		Pivot -= delta;
+		Pivot.EndDrag();
 
 		Tool?.MoveMode?.OnBegin( this );
 	}
@@ -889,7 +867,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		try
 		{
-			Rotate( Pivot, Rotation.Identity, delta );
+			Rotate( Pivot.Position, Rotation.Identity, delta );
 			UpdateDrag();
 		}
 		finally
@@ -955,7 +933,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		set => MoveSelection( PivotOrigin + value - CalculateSelectionOrigin() );
 	}
 
-	Vector3 PivotOrigin => PivotSpace == PivotSpace.Local ? Pivot : Vector3.Zero;
+	Vector3 PivotOrigin => PivotSpace == PivotSpace.Local ? Pivot.Position : Vector3.Zero;
 
 	/// <summary>
 	/// Move the selected vertices by a world space delta. The undo scope is held open
@@ -1024,12 +1002,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	{
 		_hoverMesh = null;
 		_meshSelectionDirty = true;
-	}
-
-	private void OnMeshSelectionChanged()
-	{
-		Pivot = CalculateSelectionOrigin();
-		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	protected void Select( IMeshElement element )

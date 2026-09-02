@@ -144,6 +144,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		{
 			entry.Key.WorldPosition = entry.Value.Position + delta;
 		}
+
+		Pivot.Drag( delta );
 	}
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
@@ -267,30 +269,36 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 		using var scope = SceneEditorSession.Scope();
 		var duplicate = Gizmo.IsShiftPressed;
-		using var undoScope = duplicate
+
+		var rotation = CalculateSelectionBasis();
+		var delta = Gizmo.Nudge( rotation, direction );
+
+		Pivot.BeginDrag();
+
+		using ( duplicate
 			? SceneEditorSession.Active.UndoScope( "Duplicate Object(s)" )
 				.WithGameObjectCreations()
 				.WithComponentChanges( _meshes )
 				.Push()
 			: SceneEditorSession.Active.UndoScope( "Nudge Mesh(s)" )
 				.WithGameObjectChanges( _objects, GameObjectUndoFlags.Properties )
-				.Push();
-
-		if ( duplicate )
+				.Push() )
 		{
-			DuplicateSelection();
-			OnSelectionChanged();
+			if ( duplicate )
+			{
+				DuplicateSelection();
+				OnSelectionChanged();
+			}
+
+			foreach ( var go in _objects )
+			{
+				go.WorldPosition -= delta;
+			}
+
+			Pivot.Translate( -delta );
 		}
 
-		var rotation = CalculateSelectionBasis();
-		var delta = Gizmo.Nudge( rotation, direction );
-
-		Pivot -= delta;
-
-		foreach ( var go in _objects )
-		{
-			go.WorldPosition -= delta;
-		}
+		Pivot.EndDrag();
 
 		Tool?.MoveMode?.OnBegin( this );
 	}
@@ -327,7 +335,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 		try
 		{
-			Rotate( Pivot, Rotation.Identity, delta );
+			Rotate( Pivot.Position, Rotation.Identity, delta );
 			UpdateDrag();
 		}
 		finally
@@ -385,29 +393,23 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 		OnSelectionChanged();
 
-		var undo = SceneEditorSession.Active.UndoSystem;
-		undo.OnUndo += OnUndoRedo;
-		undo.OnRedo += OnUndoRedo;
+		SubscribeUndo();
 	}
 
 	public override void OnDisabled()
 	{
-		var undo = SceneEditorSession.Active.UndoSystem;
-		undo.OnUndo -= OnUndoRedo;
-		undo.OnRedo -= OnUndoRedo;
+		UnsubscribeUndo();
 
 		SaveCurrentSelection<GameObject>();
 	}
 
-	void OnUndoRedo( object _ )
-	{
-		OnSelectionChanged();
-	}
+	protected override void OnAfterUndoRedo() => RebuildSelectionCache();
 
 	public override void OnUpdate()
 	{
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
 
+		Pivot.Update();
 		UpdateMoveMode();
 		UpdateHovered();
 		UpdateSelectionMode();
@@ -440,6 +442,18 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 	public override void OnSelectionChanged()
 	{
+		// Undo restores the selection, reselecting the same objects. That isn't a change,
+		// so the pivot stays where it is. Ids are used because a restore rebuilds the objects.
+		var previous = _objects.Select( x => x?.Id ).ToHashSet();
+
+		RebuildSelectionCache();
+
+		if ( !previous.SetEquals( _objects.Select( x => x?.Id ) ) )
+			Pivot.Reset();
+	}
+
+	void RebuildSelectionCache()
+	{
 		_objects = Selection.OfType<GameObject>().ToArray();
 		_meshes = Selection.OfType<GameObject>()
 			.Select( x => x.GetComponent<MeshComponent>() )
@@ -456,8 +470,6 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 				_transformVertices[v] = mesh.WorldTransform.PointToWorld( mesh.Mesh.GetVertexPosition( vertex ) );
 			}
 		}
-
-		ClearPivot();
 	}
 
 	public void SelectSimilar()
