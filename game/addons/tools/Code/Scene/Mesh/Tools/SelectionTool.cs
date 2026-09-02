@@ -41,6 +41,71 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public Vector3 Pivot { get; set; }
 
+	int _pivotIndex = 0;
+
+	/// <summary>
+	/// The pivot positions we cycle through - the centre of the selection, its eight corners,
+	/// then the centre of its top and bottom faces.
+	/// </summary>
+	static IReadOnlyList<Vector3> GetPivots( BBox box )
+	{
+		var mins = box.Mins;
+		var maxs = box.Maxs;
+		var center = box.Center;
+
+		return
+		[
+			center,
+
+			new Vector3( mins.x, mins.y, mins.z ),
+			new Vector3( maxs.x, mins.y, mins.z ),
+			new Vector3( mins.x, maxs.y, mins.z ),
+			new Vector3( maxs.x, maxs.y, mins.z ),
+
+			new Vector3( mins.x, mins.y, maxs.z ),
+			new Vector3( maxs.x, mins.y, maxs.z ),
+			new Vector3( mins.x, maxs.y, maxs.z ),
+			new Vector3( maxs.x, maxs.y, maxs.z ),
+
+			new Vector3( center.x, center.y, mins.z ),
+			new Vector3( center.x, center.y, maxs.z ),
+		];
+	}
+
+	void StepPivot( int direction )
+	{
+		var box = CalculateSelectionBounds();
+		if ( box.Size.Length <= 0 ) return;
+
+		var pivots = GetPivots( box );
+
+		_pivotIndex = (_pivotIndex + direction + pivots.Count) % pivots.Count;
+		SetPivot( pivots[_pivotIndex], _pivotIndex );
+	}
+
+	void SetPivot( Vector3 pivot, int index )
+	{
+		Pivot = pivot;
+		_pivotIndex = index;
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public void PreviousPivot() => StepPivot( -1 );
+	public void NextPivot() => StepPivot( 1 );
+
+	public void ClearPivot() => SetPivot( CalculateSelectionOrigin(), 0 );
+
+	public void ZeroPivot() => SetPivot( default, 0 );
+
+	public void CenterPivot()
+	{
+		var box = CalculateSelectionBounds();
+		if ( box.Size.Length <= 0 ) return;
+
+		SetPivot( box.Center, 0 );
+	}
+
 	public bool DragStarted { get; private set; }
 
 	public bool GlobalSpace { get; set; }
@@ -1614,5 +1679,14 @@ public static class SelectionToolSidebarExtensions
 		var space = ControlWidget.Create( so.GetProperty( nameof( SelectionTool.PivotSpace ) ) );
 		space.Enabled = hasSelection;
 		group.Add( space );
+	}
+
+	/// <summary>
+	/// Add a "Pivot" group for moving the selection's pivot around.
+	/// </summary>
+	public static void AddPivotButtons( this ToolSidebarWidget sidebar, SelectionTool tool, bool enabled )
+	{
+		var group = sidebar.AddGroup( "Pivot" );
+		group.Add( new PivotButtonsWidget( sidebar, tool, enabled ) );
 	}
 }
