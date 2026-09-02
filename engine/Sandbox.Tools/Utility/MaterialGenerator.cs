@@ -10,13 +10,13 @@ namespace Editor;
 /// </summary>
 internal static class MaterialGenerator
 {
-	public const string DefaultShader = "shaders/complex.shader";
+	internal const string DefaultShader = "shaders/complex.shader";
 
 	/// <summary>
 	/// A group of texture files that share a directory and a base name, keyed by their suffix..
 	/// For example awesome_mat_color.png + awesome_mat_normal.png becomes one set named "awesome_mat"
 	/// </summary>
-	public sealed class TextureSet
+	internal sealed class TextureSet
 	{
 		public string Directory { get; init; }
 
@@ -29,7 +29,7 @@ internal static class MaterialGenerator
 	/// Maps a texture file suffix to the shader variable that consumes it,
 	/// returns null if the shader couldn't be loaded
 	/// </summary>
-	public static Dictionary<string, string> GetSuffixMap( string shaderPath )
+	internal static Dictionary<string, string> GetSuffixMap( string shaderPath )
 	{
 		var shader = Shader.Load( shaderPath );
 		if ( shader is null || !shader.IsValid )
@@ -76,7 +76,7 @@ internal static class MaterialGenerator
 	/// <summary>
 	/// Find every group of suffixed texture files at or below root directory
 	/// </summary>
-	public static List<TextureSet> DiscoverTextureSets( string rootDirectory, IEnumerable<string> suffixes )
+	internal static List<TextureSet> DiscoverTextureSets( string rootDirectory, IEnumerable<string> suffixes )
 	{
 		var result = new List<TextureSet>();
 
@@ -113,14 +113,15 @@ internal static class MaterialGenerator
 			if ( !TrySplitSuffix( Path.GetFileNameWithoutExtension( asset.AbsolutePath ), ordered, out var baseName, out var suffix ) )
 				continue;
 
-			var directory = Path.GetDirectoryName( absolute ).NormalizeFilename( false );
-			var key = (directory, baseName.ToLowerInvariant());
+			// the lowercased path is only ever used for grouping - the set keeps the real one, so
+			// writing the material works on case-sensitive filesystems too
+			var key = (Path.GetDirectoryName( absolute ).NormalizeFilename( false ), baseName.ToLowerInvariant());
 
 			if ( !byKey.TryGetValue( key, out var set ) )
 			{
 				set = new TextureSet
 				{
-					Directory = directory,
+					Directory = Path.GetDirectoryName( asset.AbsolutePath ).NormalizeFilename( false, false ),
 					BaseName = baseName,
 					BySuffix = new Dictionary<string, Asset>( StringComparer.OrdinalIgnoreCase ),
 				};
@@ -135,7 +136,7 @@ internal static class MaterialGenerator
 		return result;
 	}
 
-	public static TextureSet FindSetForSlot( List<TextureSet> sets, string slotName )
+	internal static TextureSet FindSetForSlot( List<TextureSet> sets, string slotName )
 	{
 		if ( sets is null || string.IsNullOrWhiteSpace( slotName ) )
 			return null;
@@ -151,7 +152,7 @@ internal static class MaterialGenerator
 	/// <summary>
 	/// Get the material for a texture set, creating it next to the textures if it doesn't exist yet
 	/// </summary>
-	public static string GetOrCreateMaterial( TextureSet set, string shaderPath, Dictionary<string, string> suffixMap )
+	internal static string GetOrCreateMaterial( TextureSet set, string shaderPath, Dictionary<string, string> suffixMap )
 	{
 		if ( set is null || suffixMap is null )
 			return null;

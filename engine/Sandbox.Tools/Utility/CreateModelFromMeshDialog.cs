@@ -168,7 +168,6 @@ public class CreateModelFromMeshDialog : Widget
 		materialGroup.SetHasGlobalDefault( false );
 
 		var sets = plan.SetsFor( Path.GetDirectoryName( outputPath ) );
-		var generated = 0;
 
 		foreach ( var slot in slots )
 		{
@@ -184,7 +183,6 @@ public class CreateModelFromMeshDialog : Widget
 				continue;
 
 			materialGroup.AddRemap( slot, materialPath );
-			generated++;
 		}
 	}
 
