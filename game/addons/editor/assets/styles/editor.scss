@@ -551,3 +551,31 @@
 .style-light .empty .icon { color: $l-line; }
 .style-light .empty .title { color: $l-text-muted; }
 .style-light .empty .hint { color: $l-text-faint; }
+
+//
+// Tooltips - each one is an OS window of its own, so like the popup menus it carries the base
+// style itself. The compositor rounds and borders the window.
+//
+.os-tooltip .tooltip
+{
+	flex-direction: column;
+	align-items: flex-start;
+	max-width: 360px;
+	padding: 7px 10px;
+	border-radius: 0;
+	border: none;
+	margin: 0;
+	background-color: $raised;
+	color: $text;
+	font-family: Poppins;
+	font-size: 12px;
+	font-weight: normal;
+	opacity: 1;
+	transition: opacity 0.1s ease-out;
+}
+
+.os-tooltip .tooltip:intro { opacity: 0; }
+
+.os-tooltip .tooltip .tooltip-title { font-weight: 600; margin-bottom: 4px; }
+.os-tooltip .tooltip .tooltip-detail { color: $text-muted; font-size: 11px; margin-top: 4px; }
+.os-tooltip .tooltip .tooltip-image { width: 128px; height: 128px; margin-top: 6px; }

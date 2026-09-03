@@ -416,7 +416,6 @@ internal static class EngineLoop
 	{
 		ThreadSafe.AssertIsMainThread();
 		VideoTextureLoader.TickVideoPlayers();
-		TooltipSystem.Frame();
 		PanelRealTime.Update();
 
 		using ( _simulateUiGame.Start() )

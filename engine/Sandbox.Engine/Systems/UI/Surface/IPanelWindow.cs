@@ -68,6 +68,12 @@ internal interface IPanelWindow
 	bool IsPopup { get; }
 
 	/// <summary>
+	/// A popup that never takes the mouse or the keyboard - a tooltip, say. Where the OS doesn't
+	/// pass the mouse through it for us, the routing here has to.
+	/// </summary>
+	bool IgnoresInput { get; }
+
+	/// <summary>
 	/// Let frames run inside a frame that's already running. An outgoing drag blocks in the
 	/// middle of one, and the frames the OS drag loop pulses are the only ones there are.
 	/// </summary>

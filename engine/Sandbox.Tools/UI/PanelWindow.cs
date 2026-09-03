@@ -374,6 +374,7 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 
 		Surface = new UISurface();
 		Surface.OnCursorChanged = x => _cursor = x;
+		Surface.Tooltips.Host = this;
 
 		// Before the first frame, so anything set on the window between here and then - a size
 		// limit, say - converts against the scale the surface will actually lay out with
@@ -391,6 +392,15 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		if ( Surface is null )
 			return;
 
+		// Popups hanging off this window go first. The OS destroys owned windows with their
+		// owner, and a swap chain has to be destroyed before its window - never after.
+		CloseTooltip();
+
+		foreach ( var child in _all.ToArray() )
+		{
+			if ( child._parent == this ) child.Dispose();
+		}
+
 		_all.Remove( this );
 		PanelWindows.Unregister( this );
 
@@ -403,20 +413,26 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		_world?.Delete();
 		_world = null;
 
-		if ( _swapChain != default )
-		{
-			var chain = _swapChain;
-			_swapChain = default;
-			EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( chain ) ) );
-		}
+		var chain = _swapChain;
+		var window = _window;
+		var isPopup = _isPopup;
 
-		if ( _window != IntPtr.Zero )
-		{
-			if ( _isPopup ) PanelWindowNative.DestroyPopup( _window );
-			else PanelWindowNative.Destroy( _window );
+		_swapChain = default;
+		_window = IntPtr.Zero;
 
-			_window = IntPtr.Zero;
-		}
+		if ( window == IntPtr.Zero )
+			return;
+
+		// Both go at frame end, the swap chain first - destroying it waits for its last present,
+		// which needs the window it presented to still there
+		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () =>
+		{
+			if ( chain != default )
+				g_pRenderDevice.DestroySwapChain( chain );
+
+			if ( isPopup ) PanelWindowNative.DestroyPopup( window );
+			else PanelWindowNative.Destroy( window );
+		} ) );
 	}
 
 	/// <summary>

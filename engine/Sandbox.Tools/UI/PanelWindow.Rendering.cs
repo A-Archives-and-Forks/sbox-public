@@ -13,6 +13,12 @@ public sealed partial class PanelWindow
 	bool _shown = true;
 
 	/// <summary>
+	/// Whether the OS window is on screen. A popup is born hidden and appears once it has drawn
+	/// its contents, so this is false for its first frame or two.
+	/// </summary>
+	public bool IsShown => _shown;
+
+	/// <summary>
 	/// Resize the window to fit the first thing on the surface. Popups use this so a menu is
 	/// exactly as big as its contents, however far outside the parent window that ends up.
 	/// </summary>
@@ -83,6 +89,11 @@ public sealed partial class PanelWindow
 		if ( chainWidth > 0 && chainHeight > 0 ) _swapChainSize = new Vector2( chainWidth, chainHeight );
 
 		Surface.Size = _swapChainSize;
+
+		// A window that sizes to its contents has nothing to show until it has some - drawing
+		// now would put an empty window on the screen at whatever size it happens to be
+		if ( SizeToContents && Surface.Root.ChildrenCount == 0 )
+			return false;
 
 		if ( !_isPopup )
 		{

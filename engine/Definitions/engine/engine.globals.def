@@ -2,6 +2,7 @@
 #include "engine2.h"
 #include "tier0/platform_extra.h"
 #include "SDL3/SDL.h"
+#include "sbox/sdl_extensions.h"
 #include "sbox/media/mediainterface.h"
 #include "protocol.h"
 #include "tier0/tools_stall_monitor.h"
@@ -28,6 +29,11 @@ native static class global as NativeEngine.EngineGlobal
 	// Returns SDL-allocated utf8 - convert it, then hand it back to SDL_free
 	IntPtr SDL_GetClipboardText();
 	void SDL_free( CastTo[void*] IntPtr mem );
+	string SDL_GetError();
+
+	void* SDL_CreatePopupWindow( CastTo[SDL_Window*] IntPtr parent, int x, int y, int width, int height, ulong flags );
+	void SDL_SetWindowRoundedCorners( CastTo[SDL_Window*] IntPtr window, bool rounded );
+	void SDL_SetWindowMouseTransparent( CastTo[SDL_Window*] IntPtr window, bool transparent );
 
 	inline bool IsWindowFocused()
 	{

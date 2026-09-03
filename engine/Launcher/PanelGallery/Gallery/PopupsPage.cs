@@ -22,6 +22,9 @@ public class PopupsPage : GalleryPage
 		popupButton = new Sandbox.UI.Button( "Popup Under Mouse", "ads_click", "flatbutton", () => OpenSurfacePopup( popupButton ) );
 		row.AddChild( popupButton );
 
+		row = Case( "Open and close by themselves - window creation and teardown under load", true );
+		row.AddChild( new PopupStress() );
+
 		_output = Output();
 	}
 

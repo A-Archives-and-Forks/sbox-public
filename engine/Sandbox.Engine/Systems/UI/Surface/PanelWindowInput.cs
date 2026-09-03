@@ -37,6 +37,15 @@ internal static class PanelWindowInput
 
 	internal static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, int ikeymods )
 	{
+		// A click that landed on a window that ignores input - on a platform that didn't pass it
+		// through to the window underneath - is a click on nothing. It dismisses the popups and
+		// that's all.
+		if ( PanelWindows.Find( window ) is { IgnoresInput: true } )
+		{
+			if ( down ) PanelWindows.DismissPopups();
+			return;
+		}
+
 		// The window under the cursor, not the focused one - the mouse doesn't need focus
 		if ( Target( window ) is not { } target ) return;
 

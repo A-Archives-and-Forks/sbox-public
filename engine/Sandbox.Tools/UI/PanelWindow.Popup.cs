@@ -14,6 +14,16 @@ public sealed partial class PanelWindow
 
 	bool IPanelWindow.IsPopup => _isPopup;
 
+	bool _ignoresInput;
+
+	bool IPanelWindow.IgnoresInput => _ignoresInput;
+
+	/// <summary>
+	/// A popup that never takes the keyboard or the mouse - a tooltip, say. It can't be focused,
+	/// and the mouse goes to whatever is under it.
+	/// </summary>
+	public bool IgnoresInput => _ignoresInput;
+
 	/// <summary>
 	/// Open a popup - a borderless window that sits above its parent and can hang outside it, the
 	/// way an OS menu does. The position is in the parent's client pixels, which is what a panel's
@@ -23,19 +33,20 @@ public sealed partial class PanelWindow
 	/// is put in it, and only then appears - so what it ends up as is the size of its contents.
 	/// </para>
 	/// </summary>
-	public static PanelWindow Popup( PanelWindow parent, Vector2 position )
+	public static PanelWindow Popup( PanelWindow parent, Vector2 position, bool ignoresInput = false )
 	{
 		ArgumentNullException.ThrowIfNull( parent );
 
 		// SDL popup windows position themselves relative to their parent, in window coordinates
-		return new PanelWindow( parent, parent.PixelsToWindow( position ) );
+		return new PanelWindow( parent, parent.PixelsToWindow( position ), ignoresInput );
 	}
 
-	PanelWindow( PanelWindow parent, Vector2 localPosition )
+	PanelWindow( PanelWindow parent, Vector2 localPosition, bool ignoresInput )
 	{
 		ThreadSafe.AssertIsMainThread();
 
 		_isPopup = true;
+		_ignoresInput = ignoresInput;
 		_shown = false;
 		SizeToContents = true;
 		Borderless = true;
@@ -50,6 +61,7 @@ public sealed partial class PanelWindow
 
 		Surface = new UISurface { DpiScale = parent.Surface.DpiScale, Size = parent.PixelSize };
 		Surface.OnCursorChanged = x => _cursor = x;
+		Surface.Tooltips.Host = this;
 
 		// The OS rounds and clips this window like its own menus - the styles square off
 		// what would double-round inside that clip
@@ -70,10 +82,43 @@ public sealed partial class PanelWindow
 	/// </summary>
 	void CreateNativeWindow()
 	{
-		_window = PanelWindowNative.CreatePopup( _parent._window, (int)_pendingPosition.x, (int)_pendingPosition.y,
-			(int)MathF.Ceiling( _pendingWindowSize.x ), (int)MathF.Ceiling( _pendingWindowSize.y ) );
+		var x = (int)_pendingPosition.x;
+		var y = (int)_pendingPosition.y;
+		var width = (int)MathF.Ceiling( _pendingWindowSize.x );
+		var height = (int)MathF.Ceiling( _pendingWindowSize.y );
+
+		//
+		// A real SDL popup window - positioned relative to its parent, kept above it, hidden and
+		// destroyed along with it. The menu flag takes keyboard focus, so a click anywhere else
+		// pulls focus away and the owner can dismiss it.
+		//
+		// Hidden until the first frame has been drawn - a popup born visible flashes a blank
+		// window at its starting size before the UI sizes and fills it.
+		//
+		var flags = SdlWindowFlags.PopupMenu | SdlWindowFlags.Vulkan | SdlWindowFlags.HighPixelDensity | SdlWindowFlags.Hidden;
+
+		// A window that ignores input never takes keyboard focus either - so a tooltip appearing
+		// doesn't pull the caret out of a text entry. Not SDL_WINDOW_TOOLTIP: a swap chain on one
+		// of those never presents. A menu popup flagged not focusable is what SDL documents for
+		// this anyway.
+		if ( _ignoresInput )
+			flags |= SdlWindowFlags.NotFocusable;
+
+		_window = EngineGlobal.SDL_CreatePopupWindow( _parent._window, x, y, width, height, (ulong)flags );
+
 		if ( _window == IntPtr.Zero )
-			throw new Exception( "Couldn't create the popup" );
+			throw new Exception( $"Couldn't create the popup: {EngineGlobal.SDL_GetError()}" );
+
+		// The compositor rounds the corners, the way it rounds the OS's own menus. Drawing our
+		// own rounding needs a transparent swapchain, and Windows doesn't composite Vulkan alpha
+		// - the corner pixels come out as uninitialized garbage.
+		EngineGlobal.SDL_SetWindowRoundedCorners( _window, true );
+
+		// The mouse falls straight through to the window underneath, which keeps its hover
+		if ( _ignoresInput )
+			EngineGlobal.SDL_SetWindowMouseTransparent( _window, true );
+
+		PanelWindowNative.Setup( _window );
 
 		// A popup can open on a display that scales differently to the window that spawned it
 		Surface.DpiScale = PanelWindowNative.GetContentsScale( _window );
@@ -96,4 +141,17 @@ public sealed partial class PanelWindow
 			ZFar = 1000,
 		};
 	}
+}
+
+/// <summary>
+/// SDL_WindowFlags, the ones a popup needs. Values are SDL3's.
+/// </summary>
+[Flags]
+enum SdlWindowFlags : ulong
+{
+	Hidden = 0x8,
+	HighPixelDensity = 0x2000,
+	PopupMenu = 0x80000,
+	Vulkan = 0x10000000,
+	NotFocusable = 0x80000000,
 }

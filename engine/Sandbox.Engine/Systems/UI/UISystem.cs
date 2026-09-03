@@ -21,6 +21,12 @@ internal partial class UISystem
 	internal List<Panel> DeletionList = new();
 	internal InputEventQueue InputEventQueue = new();
 
+	/// <summary>
+	/// Tooltips for the panels in this UI. Each instance has its own, so a tooltip in one window
+	/// has nothing to do with the game screen's.
+	/// </summary>
+	internal TooltipSystem Tooltips { get; } = new();
+
 	// focus
 	internal Panel CurrentFocus { get; set; }
 	internal Panel NextFocus { get; set; }
@@ -261,6 +267,9 @@ internal partial class UISystem
 		// instead of dropping every key press
 		InputEventQueue.TickFocused( CurrentFocus ?? RootPanels.FirstOrDefault() );
 		InputEventQueue.Tick( Input.Hovered, Input.Active );
+
+		Tooltips.SetHovered( allowMouseInput ? Input.Hovered : null );
+		Tooltips.Frame( Input.CursorPosition, allowMouseInput );
 	}
 
 	internal void TickInput( bool allowMouseInput )
@@ -295,6 +304,9 @@ internal partial class UISystem
 		// WorldInputs simulate this themselves in WorldInputInternal.Tick
 		//
 		InputEventQueue.Tick( Input.Hovered, Input.Active );
+
+		// The input router picks which UI is hovered for tooltips - this just runs the one it picked
+		Tooltips.Frame( Input.CursorPosition, InputRouter.MouseCursorVisible );
 
 		//
 		// Set mouse delta to 0 so it doesn't repeat the last frame's
@@ -485,7 +497,7 @@ internal partial class UISystem
 	internal void Clear()
 	{
 		// Clear any dangling tooltip panel references before destroying the tree.
-		TooltipSystem.Clear();
+		Tooltips.Clear();
 
 		// Use immediate deletion so child panels are recursively cleaned up
 		// right now. The default (deferred) path just queues an outro

@@ -132,3 +132,23 @@
 .style-light .gallery-page .t-muted { color: $l-text-muted; }
 .style-light .gallery-page .t-faint { color: $l-text-faint; }
 .style-light .gallery-page .swatch { border-color: $l-line; }
+
+//
+// Tooltips page
+//
+.gallery-page .tooltip-group { flex-direction: row; padding: 8px; border-radius: 8px; border: 1px dashed $line; }
+.gallery-page .tooltip-edge { justify-content: flex-end; }
+.gallery-page .textentry { min-width: 240px; }
+.os-tooltip .custom-tooltip { flex-direction: row; align-items: center; }
+.os-tooltip .custom-tooltip .icon { margin-right: 6px; color: $accent; }
+
+//
+// Popups page - the stress control
+//
+.gallery-page .popup-stress { flex-direction: column; align-items: flex-start; }
+.gallery-page .popup-stress .metrics { flex-direction: column; margin-top: 12px; }
+.gallery-page .popup-stress .metric { flex-direction: row; margin-bottom: 4px; }
+.gallery-page .popup-stress .metric .name { width: 260px; color: $text-muted; }
+.gallery-page .popup-stress .metric .value { color: $text; }
+.style-light .gallery-page .popup-stress .metric .name { color: $l-text-muted; }
+.style-light .gallery-page .popup-stress .metric .value { color: $l-text; }

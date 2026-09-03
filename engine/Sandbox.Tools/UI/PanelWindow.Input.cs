@@ -26,6 +26,9 @@ public sealed partial class PanelWindow
 
 	void IPanelWindow.SetCursorPosition( Vector2 position )
 	{
+		// The window under it keeps its hover
+		if ( _ignoresInput ) return;
+
 		_mousePosition = position;
 		_mouseInside = position.x >= 0 && position.y >= 0 && position.x < Surface.Size.x && position.y < Surface.Size.y;
 	}

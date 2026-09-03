@@ -23,6 +23,7 @@ public record GalleryPageInfo( string Title, string Icon, Func<Panel> Create )
 		new( "Dragging", "drag_indicator", () => new DragPage() ),
 		new( "Drag & Drop", "move_to_inbox", () => new DropPage() ),
 		new( "Popups", "menu", () => new PopupsPage() ),
+		new( "Tooltips", "chat_bubble_outline", () => new TooltipsPage() ),
 		new( "Icons", "mood", () => new IconsPage() ),
 		new( "Typography", "text_fields", () => new TypographyPage() ),
 	];
