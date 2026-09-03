@@ -39,11 +39,11 @@ public class PanelGalleryAppSystem : PanelAppSystem
 
 	/// <summary>
 	/// The renderer test pages compile into this assembly - the type library finds their
-	/// stylesheet attributes, the mounted folder serves the scss.
+	/// stylesheet attributes, the mounted folder serves the scss the build copied there.
 	/// </summary>
 	void RegisterUiTests()
 	{
-		var path = System.IO.Path.GetFullPath( System.IO.Path.Combine( Environment.CurrentDirectory, "..", "engine", "Launcher", "PanelGallery", "UiTests" ) );
+		var path = System.IO.Path.Combine( Environment.CurrentDirectory, "addons", "editor", "assets", "uitests" );
 
 		RegisterCompiledPanelCode( typeof( PanelGalleryAppSystem ).Assembly, path );
 		UiTestPages.Register( typeof( PanelGalleryAppSystem ).Assembly );
