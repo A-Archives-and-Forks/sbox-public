@@ -437,14 +437,6 @@ namespace Sandbox.UI
 				YogaNode.MarkDirty();
 			}
 
-			// The visible width is what scrolling measures against, so a resize - or the first
-			// layout, where there wasn't one yet - has to put the caret back on screen
-			if ( _scrolledSize != Box.RectInner.Size )
-			{
-				_scrolledSize = Box.RectInner.Size;
-				ScrollToCaret();
-			}
-
 			_textRect = Box.RectInner;
 
 			if ( ComputedStyle.TextAlign == TextAlign.Center )
@@ -466,6 +458,16 @@ namespace Sandbox.UI
 			}
 
 			_textRect.Size = _textBlock.BlockSize;
+
+			// Scrolling measures against the visible size, so a resize puts the caret back on screen.
+			// After the text rect is placed, because the caret rect comes from it.
+			if ( _scrolledSize != Box.RectInner.Size )
+			{
+				_scrolledSize = Box.RectInner.Size;
+				ScrollToCaret();
+			}
+
+			ScrollParentToCaret();
 		}
 
 		public override void OnDraw()

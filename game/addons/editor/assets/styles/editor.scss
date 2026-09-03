@@ -293,9 +293,9 @@
 	white-space: pre-wrap;
 }
 
-// The label is the window onto the text, so it fills the entry rather than growing to fit -
-// scrolling measures against it, and it has to be the visible size for that to mean anything
-.textentry.is-multiline .content-label { align-self: stretch; width: 100%; height: 100%; overflow: hidden; }
+// A multiline entry scrolls like a textarea: the label grows to its text and the entry scrolls it
+.textentry.is-multiline { scrollbar-width: thin; }
+.textentry.is-multiline .content-label { align-self: flex-start; width: 100%; }
 
 // A button's text styling mustn't leak into its icon - uppercasing a ligature name stops
 // the glyph resolving

@@ -349,6 +349,8 @@ public partial class Panel : IPanel, IValid, IComponent
 			// keep before and after updated
 			UpdateBeforeAfterElements();
 
+			UpdateScrollbars();
+
 			//
 			// If our style is dirty, or we're animating/transitioning then make sure we get layed out
 			//

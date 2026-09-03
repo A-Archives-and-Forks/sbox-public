@@ -128,11 +128,47 @@ internal sealed class TextBlock : IDisposable
 			Block.MaxHeight = float.IsNaN( height ) ? null : (height + 1);
 		}
 
-		var s = new Vector2( Block.MeasuredWidth.CeilToInt(), Block.MeasuredHeight.CeilToInt() );
+		var measuredHeight = Block.MeasuredHeight;
+
+		// The paragraph gives a trailing newline's empty line no height, but the caret can sit on it
+		if ( EndsWithNewline ) measuredHeight += Block.Lines[^1].Height;
+
+		var s = new Vector2( Block.MeasuredWidth.CeilToInt(), measuredHeight.CeilToInt() );
 
 		SizeCache[hash] = s;
 
 		return s;
+	}
+
+	bool EndsWithNewline => Text is { Length: > 0 } && Text[^1] == '\n';
+
+	/// <summary>
+	/// Number of lines, including the empty one after a trailing newline
+	/// </summary>
+	public int LineCount => Block is null ? 0 : Block.Lines.Count + (EndsWithNewline ? 1 : 0);
+
+	/// <summary>
+	/// The line a caret position is on
+	/// </summary>
+	public int LineOf( int caretPosition )
+	{
+		var codepoint = CaretToCodePointIndex( caretPosition );
+
+		if ( EndsWithNewline && codepoint > 0 && codepoint == Block.Length )
+			return Block.Lines.Count;
+
+		return Block.GetCaretInfo( new CaretPosition { CodePointIndex = codepoint } ).LineIndex;
+	}
+
+	/// <summary>
+	/// The caret position nearest an x on a given line
+	/// </summary>
+	public int GetLetterAtLine( int line, float x )
+	{
+		if ( Block is null ) return -1;
+		if ( line >= Block.Lines.Count ) return Block.LookupCaretIndex( Block.Length );
+
+		return Block.LookupCaretIndex( Block.HitTestLine( line, x ).ClosestCodePointIndex );
 	}
 
 	void WaitTextureReady()

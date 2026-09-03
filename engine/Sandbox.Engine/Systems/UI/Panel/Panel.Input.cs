@@ -276,6 +276,66 @@ public partial class Panel
 		return true;
 	}
 
+	/// <summary>
+	/// Jump to a scroll position, clamped to the scrollable area. Stops any inertia.
+	/// </summary>
+	public void ScrollTo( Vector2 offset )
+	{
+		var min = IsScrollAxisReversed ? -ScrollSize : Vector2.Zero;
+		var max = IsScrollAxisReversed ? Vector2.Zero : ScrollSize;
+
+		offset = Vector2.Max( Vector2.Min( offset, max ), min );
+
+		ScrollVelocity = 0;
+		IsScrollAtBottom = offset.y >= ScrollSize.y;
+
+		if ( ScrollOffset == offset )
+			return;
+
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
+	}
+
+	/// <summary>
+	/// Scroll the least amount that brings a screen-space rect inside the content box. Returns false if
+	/// nothing scrolled. The offset isn't clamped here: content that has just grown hasn't updated the
+	/// scroll range yet, and the next layout clamps anyway.
+	/// </summary>
+	public bool ScrollIntoView( Rect rect )
+	{
+		if ( ComputedStyle is null ) return false;
+		if ( ComputedStyle.Overflow != OverflowMode.Scroll ) return false;
+
+		var view = Box.RectInner;
+		var clip = ContentClipRect;
+		view.Left = Math.Max( view.Left, clip.Left );
+		view.Right = Math.Min( view.Right, clip.Right );
+
+		var offset = ScrollOffset;
+
+		// A scroll requested but not yet laid out will move the rect, so work from where it's going to be
+		rect.Position -= offset - _laidOutScrollOffset;
+
+		if ( ComputedStyle.OverflowY == OverflowMode.Scroll )
+		{
+			if ( rect.Bottom > view.Bottom ) offset.y += MathF.Ceiling( rect.Bottom - view.Bottom );
+			if ( rect.Top < view.Top ) offset.y -= MathF.Ceiling( view.Top - rect.Top );
+		}
+
+		if ( ComputedStyle.OverflowX == OverflowMode.Scroll )
+		{
+			if ( rect.Right > view.Right ) offset.x += MathF.Ceiling( rect.Right - view.Right );
+			if ( rect.Left < view.Left ) offset.x -= MathF.Ceiling( view.Left - rect.Left );
+		}
+
+		if ( offset == ScrollOffset ) return false;
+
+		ScrollVelocity = 0;
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
+		return true;
+	}
+
 	internal static Panel MouseCapture { get; private set; }
 
 	/// <summary>
