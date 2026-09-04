@@ -58,6 +58,9 @@ internal static class PanelWindowInput
 		// survives, anywhere else closes them
 		if ( down ) BasePopup.CloseAll( target.Surface.Hovered );
 
+		// A popup window can go with them - a click on nothing in it, say
+		if ( !target.IsOpen ) return;
+
 		var modifiers = ToModifiers( ikeymods );
 
 		target.Surface.SetMouseButton( button, down, modifiers );
@@ -80,16 +83,26 @@ internal static class PanelWindowInput
 
 	internal static void OnKey( IntPtr window, ButtonCode button, bool down, bool repeating, int ikeymods )
 	{
-		if ( PanelWindows.Find( window ) is not { } target ) return;
+		if ( KeyboardTarget( window ) is not { } target ) return;
 
 		target.Surface.SetKey( button, down, ToModifiers( ikeymods ) );
 	}
 
 	internal static void OnText( IntPtr window, string text )
 	{
-		if ( PanelWindows.Find( window ) is not { } target ) return;
+		if ( KeyboardTarget( window ) is not { } target ) return;
 
 		target.Surface.TypeText( text );
+	}
+
+	/// <summary>
+	/// The window a key pressed in this OS window goes to - an open menu takes the keyboard.
+	/// </summary>
+	static IPanelWindow KeyboardTarget( IntPtr window )
+	{
+		if ( PanelWindows.Find( window ) is not { } target ) return null;
+
+		return PanelWindows.KeyboardTarget( target );
 	}
 
 	/// <summary>

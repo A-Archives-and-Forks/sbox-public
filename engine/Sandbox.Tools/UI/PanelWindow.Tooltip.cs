@@ -7,7 +7,7 @@ namespace Editor;
 // or OnTooltip for something richer - but here they open in a window of their own, so they can
 // hang outside the window like the OS's do. The engine's TooltipSystem decides when; this is where.
 //
-public sealed partial class PanelWindow : ITooltipHost
+public partial class PanelWindow : ITooltipHost
 {
 	PanelWindow _tooltip;
 

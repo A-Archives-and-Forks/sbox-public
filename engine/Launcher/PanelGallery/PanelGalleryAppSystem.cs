@@ -23,17 +23,16 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		// The old default - the mock editor straight up, no gallery around it
 		if ( Environment.GetCommandLineArgs().Any( x => x.Equals( "-editor", StringComparison.OrdinalIgnoreCase ) ) )
 		{
-			var editor = new PanelWindow( "Panel Gallery", new Vector2( 1500, 940 ), new Vector2( -1, -1 ), true );
-			editor.Root.AddChild( new EditorWindow( editor ) );
-			_windows.Add( editor );
+			_windows.Add( EditorWindow.Open() );
 			return;
 		}
 
 		RegisterUiTests();
 
 		// Borderless - the title bar in this one is panels, same as everything else
-		var window = new PanelWindow( "Control Gallery", new Vector2( 1280, 860 ), new Vector2( -1, -1 ), true );
+		var window = new PanelWindow( "Panel Gallery", new Vector2( 1280, 860 ), new Vector2( -1, -1 ), true );
 		window.Root.AddChild( new GalleryWindow( window ) );
+		window.Maximize();
 		_windows.Add( window );
 	}
 

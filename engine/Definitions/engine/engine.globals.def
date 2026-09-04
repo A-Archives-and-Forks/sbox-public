@@ -40,7 +40,6 @@ native static class global as NativeEngine.EngineGlobal
 	string SDL_GetError();
 
 	void* SDL_CreatePopupWindow( CastTo[SDL_Window*] IntPtr parent, int x, int y, int width, int height, ulong flags );
-	void SDL_SetWindowRoundedCorners( CastTo[SDL_Window*] IntPtr window, bool rounded );
 	void SDL_SetWindowMouseTransparent( CastTo[SDL_Window*] IntPtr window, bool transparent );
 
 	inline bool IsWindowFocused()

@@ -199,6 +199,12 @@ public partial class Panel
 		}
 
 
+		// Inherit from what we're styled under, if that's not where we're laid out
+		if ( StyleParent is { } styleParent && styleParent != Parent )
+		{
+			cascade.ParentStyles = styleParent.ComputedStyle;
+		}
+
 		ComputedStyle = Style.BuildFinal( ref cascade, out bool changed );
 		cascade.ParentStyles = ComputedStyle;
 

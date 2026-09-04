@@ -27,6 +27,12 @@ internal partial class UISystem
 	/// </summary>
 	internal TooltipSystem Tooltips { get; } = new();
 
+	/// <summary>
+	/// Where popups in this UI open. Null floats them in the panel root, which is what a game
+	/// wants; a window puts each one in an OS window of its own.
+	/// </summary>
+	internal IPopupHost PopupHost { get; set; }
+
 	// focus
 	internal Panel CurrentFocus { get; set; }
 	internal Panel NextFocus { get; set; }
