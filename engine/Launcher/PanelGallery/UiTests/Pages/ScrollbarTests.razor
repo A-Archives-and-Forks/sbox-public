@@ -137,6 +137,18 @@
         </UiTestCase>
     </div>
 
+    <h2>Virtual panels</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="VirtualGrid; gap: 5px; scrollbar-gutter: stable" Note="The virtual panel lays out its cells itself, including its generated scrollbar chrome.">
+            <ChildContent>
+                <VirtualGrid class="box w-thin c-blue g-stable virtual-grid" Items="@VirtualGridItems" ItemSize="@(new Vector2( 24, 24 ))">
+                    <Item Context="item"><label>@item</label></Item>
+                </VirtualGrid>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
     <h2>Reversed axes</h2>
 
     <div class="cases">
@@ -245,6 +257,7 @@
     const string Roomy = "width: 200px; height: 170px";
 
     static readonly string ManyLines = string.Join( "\n", Enumerable.Range( 1, 30 ).Select( i => $"line {i}" ) );
+    static readonly List<object> VirtualGridItems = Enumerable.Range( 1, 30 ).Cast<object>().ToList();
 
     public const float ToggleSeconds = 1.6f;
 

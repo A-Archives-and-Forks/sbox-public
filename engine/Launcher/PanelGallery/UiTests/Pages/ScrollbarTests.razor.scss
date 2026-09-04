@@ -85,6 +85,20 @@ ScrollbarTests
 		background-color: #1b3a57;
 	}
 
+	.virtual-grid
+	{
+		gap: 5px;
+
+		.cell
+		{
+			align-items: center;
+			justify-content: center;
+			background-color: $content-start;
+			border: 1px solid red;
+			font-size: 10px;
+		}
+	}
+
 	// Reversed axes
 	.col-rev { flex-direction: column-reverse; }
 	.end     { justify-content: flex-end; }
