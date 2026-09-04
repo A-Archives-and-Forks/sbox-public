@@ -14,6 +14,14 @@ native static class global as NativeEngine.EngineGlobal
 	void Plat_MessageBox( string title, string message );
 	bool Plat_GetDesktopResolution( int nMonitorIndex, ref int pWidth, ref int pHeight, ref uint pRefreshRate );
 	int Plat_GetDefaultMonitorIndex();
+
+	// Monitor the game window is on, or the default monitor before there is a window
+	inline int Plat_GetEngineWindowMonitorIndex()
+	{
+		PlatWindow_t window = g_pEngineServiceMgr->GetEngineWindow();
+		int nMonitor = ( window != PLAT_WINDOW_INVALID ) ? Plat_GetWindowMonitorIndex( window ) : -1;
+		return ( nMonitor >= 0 ) ? nMonitor : Plat_GetDefaultMonitorIndex();
+	}
 	bool Plat_SafeRemoveFile( string file );
 
 	void Plat_SetModuleFilename( string filename );
