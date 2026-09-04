@@ -256,6 +256,10 @@
 .flatbutton:active { background-color: $ground; transform: scale( 0.97 ); }
 .flatbutton .icon { font-size: 15px; margin-right: 6px; }
 
+// Keyboard focus, reached with Tab. Outline so the layout doesn't move
+.iconbutton:focus, .flatbutton:focus { outline: 2px solid $accent; }
+.primarybutton:focus { outline: 2px solid #fff; }
+
 //
 // Text inputs
 //
@@ -386,6 +390,8 @@
 // The glyph hides by matching the box color - the text renderer doesn't do alpha
 .checkbox .checkmark { width: 20px; height: 20px; border-radius: 4px; border: 1px solid $line; background-color: $raised; font-size: 14px; padding-top: 2px; text-align: center; color: $raised; margin-right: 10px; }
 .checkbox.checked .checkmark { background-color: $accent; border-color: $accent; color: #ffffff; }
+.checkbox:focus .checkmark { border-color: $accent; }
+.checkbox.checked:focus .checkmark { border-color: #ffffff; }
 
 //
 // Toggle switch

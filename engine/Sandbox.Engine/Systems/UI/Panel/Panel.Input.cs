@@ -175,6 +175,54 @@ public partial class Panel
 	}
 
 	/// <summary>
+	/// Where this panel sits in the Tab order. 0, the default, is tree order. Positive values come
+	/// before that, lowest first. Negative means Tab skips it, though it can still be focused by
+	/// clicking or <see cref="Focus"/>.
+	/// </summary>
+	[Property]
+	public int TabIndex { get; set; }
+
+	/// <summary>
+	/// Move focus to the panel after this one in Tab order.
+	/// </summary>
+	public bool FocusNext()
+	{
+		return UISystem.MoveFocus( this, false );
+	}
+
+	/// <summary>
+	/// Move focus to the panel before this one in Tab order.
+	/// </summary>
+	public bool FocusPrevious()
+	{
+		return UISystem.MoveFocus( this, true );
+	}
+
+	/// <summary>
+	/// Enter or Space on a focused control clicks it. Returns true when the key was one of those
+	/// and the click was sent.
+	/// </summary>
+	internal bool TryClickFromKeyboard( ButtonEvent e )
+	{
+		if ( !e.Pressed ) return false;
+		if ( e.Button is not ("enter" or "space") ) return false;
+
+		CreateEvent( new MousePanelEvent( "onclick", this, "mouseleft" ) );
+		return true;
+	}
+
+	/// <summary>
+	/// Scroll every scrolling ancestor the least amount that brings this panel into view.
+	/// </summary>
+	internal void ScrollAncestorsIntoView()
+	{
+		for ( var p = Parent; p is not null; p = p.Parent )
+		{
+			p.ScrollIntoView( Box.Rect );
+		}
+	}
+
+	/// <summary>
 	/// Called when any button, mouse (except for mouse4/5) and keyboard, are pressed or depressed while hovering this panel.
 	/// </summary>
 	public virtual void OnButtonEvent( ButtonEvent e )

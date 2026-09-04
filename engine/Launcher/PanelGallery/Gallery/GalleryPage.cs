@@ -14,6 +14,7 @@ public record GalleryPageInfo( string Title, string Icon, Func<Panel> Create )
 		new( "Text Entry", "edit", () => new TextEntryPage() ),
 		new( "Value Controls", "123", () => new InputControlsPage() ),
 		new( "Checkbox", "check_box", () => new CheckboxPage() ),
+		new( "Focus", "keyboard_tab", () => new FocusPage() ),
 		new( "Colour", "palette", () => new ColorControlsPage() ),
 		new( "Grouping", "table_rows", () => new LayoutControlsPage() ),
 		new( "Folder Select", "folder_open", () => new FolderSelectorPage() ),

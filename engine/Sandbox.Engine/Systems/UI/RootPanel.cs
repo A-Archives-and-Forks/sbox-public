@@ -233,6 +233,17 @@ public partial class RootPanel : Panel
 		Length.RootScale = ScaleToScreen;
 	}
 
+	/// <summary>
+	/// Tab and Shift+Tab that nothing below us handled move focus through the tree.
+	/// </summary>
+	public override void OnButtonTyped( ButtonEvent e )
+	{
+		if ( e.Button == "tab" && e.Pressed && UISystem.MoveFocus( UISystem.CurrentFocus, e.HasShift ) )
+			return;
+
+		base.OnButtonTyped( e );
+	}
+
 	public override void OnLayout( ref Rect layoutRect )
 	{
 		layoutRect = PanelBounds;
