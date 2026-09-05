@@ -386,6 +386,40 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	} = true;
 
 	/// <summary>
+	/// Fill the window's display. Borderless over the desktop unless <see cref="ExclusiveFullscreen"/>
+	/// is set. Turning it off puts the window back where it was.
+	/// </summary>
+	public bool Fullscreen
+	{
+		get => field;
+		set
+		{
+			field = value;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetFullscreen( Handle, value, ExclusiveFullscreen );
+		}
+	}
+
+	/// <summary>
+	/// Whether <see cref="Fullscreen"/> takes the display over with a real display mode, the way
+	/// a game does, instead of a borderless window over the desktop. Off by default: borderless
+	/// switches instantly and plays well with other windows and displays.
+	/// </summary>
+	public bool ExclusiveFullscreen
+	{
+		get => field;
+		set
+		{
+			field = value;
+			if ( Handle != IntPtr.Zero && Fullscreen ) PanelWindowNative.SetFullscreen( Handle, true, value );
+		}
+	}
+
+	/// <summary>
+	/// Is the window fullscreen right now, either way?
+	/// </summary>
+	public bool IsFullscreen => Handle != IntPtr.Zero && PanelWindowNative.IsFullscreen( Handle );
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
