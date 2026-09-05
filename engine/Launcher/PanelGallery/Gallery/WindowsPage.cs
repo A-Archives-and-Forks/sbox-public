@@ -34,6 +34,7 @@ public class WindowsPage : GalleryPage
 		Button( geometry, "Move to center", () => With( w => { w.MoveToCenter(); Say( $"centred at {w.Position}" ); } ) );
 		Button( geometry, "Push half off screen", () => With( w => { var b = w.DisplayBounds; w.Position = new Vector2( b.Right - 200, b.Bottom - 120 ); Say( $"at {w.Position}, display {b}" ); } ) );
 		Button( geometry, "Snap to display", () => With( w => { w.SnapToDisplay(); Say( $"snapped to {w.Position}, work area {w.DisplayWorkArea}" ); } ) );
+		Button( geometry, "Toggle 16:9 lock", () => With( w => { w.AspectRatioLock = w.AspectRatioLock is null ? 16f / 9 : null; Say( $"aspect lock {w.AspectRatioLock?.ToString() ?? "off"}" ); } ) );
 		Button( geometry, "Toggle resizable", () => With( w => { w.Resizable = !w.Resizable; Say( $"resizable {w.Resizable}" ); } ) );
 		Button( geometry, "Toggle borderless fullscreen", () => With( w => { w.ExclusiveFullscreen = false; w.Fullscreen = !w.Fullscreen; Say( $"fullscreen {w.IsFullscreen}, borderless" ); } ) );
 		Button( geometry, "Toggle exclusive fullscreen", () => With( w => { w.ExclusiveFullscreen = true; w.Fullscreen = !w.Fullscreen; Say( $"fullscreen {w.IsFullscreen}, exclusive" ); } ) );

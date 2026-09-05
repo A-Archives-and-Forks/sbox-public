@@ -503,6 +503,20 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// Hold the window at this width to height ratio while the user resizes it - 16f / 9 keeps a
+	/// video window the shape of its video. Null lets it be any shape.
+	/// </summary>
+	public float? AspectRatioLock
+	{
+		get => field;
+		set
+		{
+			field = value is > 0 ? value : null;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetAspectRatio( Handle, field ?? 0 );
+		}
+	}
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
