@@ -52,6 +52,7 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void BringToFront( CastTo[void*] IntPtr window );
 	void SetOpacity( CastTo[void*] IntPtr window, float opacity );
 	void SetShowInTaskbar( CastTo[void*] IntPtr window, bool show );
+	void SetIcon( CastTo[void*] IntPtr window, int width, int height, CastTo[const void*] IntPtr pixels );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );

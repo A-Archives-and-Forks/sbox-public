@@ -669,6 +669,25 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// The icon in the title bar and on the taskbar button. The OS scales it, so 32 or 64 pixels
+	/// square is plenty; it's copied, so the bitmap can go afterwards.
+	/// </summary>
+	public void SetIcon( Bitmap icon )
+	{
+		if ( Handle == IntPtr.Zero || icon is null ) return;
+
+		var pixels = icon.GetPixels32();
+
+		unsafe
+		{
+			fixed ( Color32* p = pixels )
+			{
+				PanelWindowNative.SetIcon( Handle, icon.Width, icon.Height, (IntPtr)p );
+			}
+		}
+	}
+
+	/// <summary>
 	/// Bring the window to the front.
 	/// </summary>
 	public void Focus()
