@@ -320,6 +320,16 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// Is the window on screen at all, as opposed to hidden with <see cref="Hide"/> or minimized?
+	/// </summary>
+	public bool IsVisible => Handle != IntPtr.Zero && PanelWindowNative.IsVisible( Handle );
+
+	/// <summary>
+	/// Is the window minimized to the taskbar?
+	/// </summary>
+	public bool IsMinimized => Handle != IntPtr.Zero && PanelWindowNative.IsMinimized( Handle );
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
@@ -575,6 +585,25 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 
 		if ( IsMaximized ) PanelWindowNative.Restore( Handle );
 		else Maximize();
+	}
+
+	/// <summary>
+	/// Take the window off screen without closing it. Everything in it stays; <see cref="Show"/>
+	/// brings it back where it was.
+	/// </summary>
+	public void Hide()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+		PanelWindowNative.Hide( Handle );
+	}
+
+	/// <summary>
+	/// Put a hidden window back on screen.
+	/// </summary>
+	public void Show()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+		PanelWindowNative.Show( Handle );
 	}
 
 	/// <summary>
