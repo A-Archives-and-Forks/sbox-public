@@ -63,6 +63,16 @@ internal interface IPanelWindow
 	void RequestClose();
 
 	/// <summary>
+	/// The window was moved, by the user or by code.
+	/// </summary>
+	void Moved();
+
+	/// <summary>
+	/// The window is now on a different display.
+	/// </summary>
+	void DisplayChanged();
+
+	/// <summary>
 	/// A popup - a transient window like a menu, dismissed by a click anywhere else. While one
 	/// that takes input is up it has the keyboard, so a window meant to stay up alongside its
 	/// parent should set <see cref="IgnoresInput"/> instead.

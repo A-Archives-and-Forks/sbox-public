@@ -239,6 +239,16 @@ internal static class PanelWindowInput
 		PanelWindows.Find( window )?.RequestClose();
 	}
 
+	internal static void OnMoved( IntPtr window )
+	{
+		PanelWindows.Find( window )?.Moved();
+	}
+
+	internal static void OnDisplayChanged( IntPtr window )
+	{
+		PanelWindows.Find( window )?.DisplayChanged();
+	}
+
 	/// <summary>
 	/// What the user picked in the OS dialog. Empty means cancelled.
 	/// </summary>

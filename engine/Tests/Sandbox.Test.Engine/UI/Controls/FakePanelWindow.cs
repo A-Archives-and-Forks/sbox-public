@@ -20,6 +20,8 @@ sealed class FakePanelWindow : IPanelWindow, IPopupHost
 	public bool Frame( bool interactiveResize ) => false;
 	public IPanelWindow.WindowHitTest HitTest( Vector2 position ) => IPanelWindow.WindowHitTest.Normal;
 	public void RequestClose() => CloseRequested = true;
+	public void Moved() { }
+	public void DisplayChanged() { }
 	public bool IsPopup { get; init; }
 	public IPanelWindow Parent { get; init; }
 	public bool IgnoresInput { get; init; }

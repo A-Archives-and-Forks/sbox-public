@@ -117,6 +117,19 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public Action OnCloseRequested { get; set; }
 
 	/// <summary>
+	/// The window moved, whether the user dragged it or code set <see cref="Position"/>.
+	/// </summary>
+	public Action OnMoved { get; set; }
+
+	/// <summary>
+	/// The window is on a different display than it was. Its scale may have changed with it.
+	/// </summary>
+	public Action OnDisplayChanged { get; set; }
+
+	void IPanelWindow.Moved() => OnMoved?.Invoke();
+	void IPanelWindow.DisplayChanged() => OnDisplayChanged?.Invoke();
+
+	/// <summary>
 	/// What the window clears to before the UI is drawn.
 	/// </summary>
 	public Color BackgroundColor

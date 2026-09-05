@@ -109,6 +109,9 @@ managed static class Sandbox.UI.PanelWindowInput
 	static void OnMouseLeave( IntPtr window );
 	static void OnResized( IntPtr window );
 	static void OnClose( IntPtr window );
+	static void OnMoved( IntPtr window );
+	// The window crossed onto another display, which may scale differently
+	static void OnDisplayChanged( IntPtr window );
 
 	//
 	// What the user picked in the OS dialog this window opened - folder, open or save. Empty
