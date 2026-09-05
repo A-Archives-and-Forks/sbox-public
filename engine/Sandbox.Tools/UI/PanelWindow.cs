@@ -517,6 +517,22 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// The window this one belongs to. An owned window stays above its owner, minimizes with it,
+	/// and is closed with it - a tool palette, a dialog. Null makes it a top level window again.
+	/// </summary>
+	public PanelWindow Owner
+	{
+		get => field;
+		set
+		{
+			if ( value == this ) return;
+
+			field = value;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetOwner( Handle, value?.Handle ?? IntPtr.Zero );
+		}
+	}
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
@@ -696,6 +712,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		foreach ( var child in _all.ToArray() )
 		{
 			if ( child is PopupWindow popup && popup.Parent == this ) popup.Dispose();
+			else if ( child.Owner == this ) child.Dispose();
 		}
 
 		_all.Remove( this );

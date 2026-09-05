@@ -44,6 +44,13 @@ public class WindowsPage : GalleryPage
 		Button( attention, "Flash until focused", () => With( w => { w.FlashTaskbar( untilFocused: true ); Say( "flashing until it's focused" ); } ) );
 		Button( attention, "Stop flashing", () => With( w => { w.StopFlashing(); Say( "stopped" ); } ) );
 
+		var ownership = Case( "Ownership" );
+		Button( ownership, "Toggle owned by this window", () => With( w =>
+		{
+			w.Owner = w.Owner is null ? PanelWindow.FromPanel( this ) : null;
+			Say( w.Owner is null ? "top level again" : "owned by the gallery - it stays above it and minimizes with it" );
+		} ) );
+
 		var shell = Case( "Shell" );
 		Button( shell, "Toggle show in taskbar", () => With( w => { w.ShowInTaskbar = !w.ShowInTaskbar; Say( $"show in taskbar {w.ShowInTaskbar}" ); } ) );
 		Button( shell, "Set icon", () => With( w => { w.SetIcon( MakeIcon() ); Say( "icon set - look at the title bar and the taskbar" ); } ) );
