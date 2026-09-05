@@ -17,9 +17,23 @@ internal static class PanelWindowInput
 	/// The cursor moved. SDL gives the position relative to the window it happened in, which is
 	/// the only frame it means anything in.
 	/// </summary>
-	internal static void OnMouseMove( IntPtr window, float x, float y )
+	internal static void OnMouseMove( IntPtr window, float x, float y, float dx, float dy )
 	{
 		if ( PanelWindows.Find( window ) is not { } target ) return;
+
+		// A pinned cursor doesn't go anywhere; the movement is the delta, and the first one after
+		// pinning is the warp that pinned it
+		if ( PanelWindows.CaptureWindow == target )
+		{
+			if ( PanelWindows.SkipNextCaptureDelta )
+			{
+				PanelWindows.SkipNextCaptureDelta = false;
+				return;
+			}
+
+			PanelWindows.CaptureDelta += new Vector2( dx, dy );
+			return;
+		}
 
 		PanelWindows.SetCursorPosition( target, target.ToSurface( new Vector2( x, y ) ) );
 	}

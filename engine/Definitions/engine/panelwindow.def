@@ -62,6 +62,7 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void SetAspectRatio( CastTo[void*] IntPtr window, float aspect );
 	void SetOwner( CastTo[void*] IntPtr window, CastTo[void*] IntPtr owner );
 	void SetModal( CastTo[void*] IntPtr window, bool modal );
+	void SetRelativeMouse( CastTo[void*] IntPtr window, bool relative );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );
@@ -76,7 +77,8 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 //
 managed static class Sandbox.UI.PanelWindowInput
 {
-	static void OnMouseMove( IntPtr window, float x, float y );
+	// dx, dy is the movement since the last event - what there is to read while the cursor is pinned
+	static void OnMouseMove( IntPtr window, float x, float y, float dx, float dy );
 	static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, int ikeymods );
 	static void OnMouseWheel( IntPtr window, float x, float y, int ikeymods );
 	static void OnKey( IntPtr window, ButtonCode button, bool down, bool repeating, int ikeymods );

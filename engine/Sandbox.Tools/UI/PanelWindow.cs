@@ -180,6 +180,9 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 
 	void IPanelWindow.FocusChanged( bool focused )
 	{
+		// Alt-tabbing out of a look drag never sends the mouse up that would end it
+		if ( !focused ) ReleaseMouseCapture();
+
 		if ( focused ) OnActivated?.InvokeWithWarning();
 		else OnDeactivated?.InvokeWithWarning();
 	}
@@ -746,6 +749,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		// owner, and a swap chain has to be destroyed before its window - never after.
 		CloseTooltip();
 		OnClosing();
+		ReleaseMouseCapture();
 
 		if ( Modal && Handle != IntPtr.Zero ) PanelWindowNative.SetModal( Handle, false );
 
