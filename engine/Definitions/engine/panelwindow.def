@@ -48,6 +48,8 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void SetRoundedCorners( CastTo[void*] IntPtr window, bool rounded );
 
 	void SetAlwaysOnTop( CastTo[void*] IntPtr window, bool onTop );
+	void SendToBack( CastTo[void*] IntPtr window );
+	void BringToFront( CastTo[void*] IntPtr window );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );

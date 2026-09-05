@@ -621,6 +621,25 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// Put the window behind every other window. Focus stays where it is.
+	/// </summary>
+	public void SendToBack()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+		PanelWindowNative.SendToBack( Handle );
+	}
+
+	/// <summary>
+	/// Raise the window above the others without taking focus. <see cref="Focus"/> is the one
+	/// that focuses it too.
+	/// </summary>
+	public void BringToFront()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+		PanelWindowNative.BringToFront( Handle );
+	}
+
+	/// <summary>
 	/// Bring the window to the front.
 	/// </summary>
 	public void Focus()
