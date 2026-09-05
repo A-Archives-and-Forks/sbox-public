@@ -533,6 +533,20 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// Block the <see cref="Owner"/> from taking input while this window is open, the way a
+	/// dialog does. Does nothing without an owner. Cleared on close, so the owner isn't left dead.
+	/// </summary>
+	public bool Modal
+	{
+		get => field;
+		set
+		{
+			field = value;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetModal( Handle, value && Owner is not null );
+		}
+	}
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
@@ -708,6 +722,8 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		// owner, and a swap chain has to be destroyed before its window - never after.
 		CloseTooltip();
 		OnClosing();
+
+		if ( Modal && Handle != IntPtr.Zero ) PanelWindowNative.SetModal( Handle, false );
 
 		foreach ( var child in _all.ToArray() )
 		{

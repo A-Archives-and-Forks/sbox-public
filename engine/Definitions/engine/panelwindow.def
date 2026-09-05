@@ -61,6 +61,7 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void Flash( CastTo[void*] IntPtr window, int operation );
 	void SetAspectRatio( CastTo[void*] IntPtr window, float aspect );
 	void SetOwner( CastTo[void*] IntPtr window, CastTo[void*] IntPtr owner );
+	void SetModal( CastTo[void*] IntPtr window, bool modal );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );

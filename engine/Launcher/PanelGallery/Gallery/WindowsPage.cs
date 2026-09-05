@@ -51,6 +51,12 @@ public class WindowsPage : GalleryPage
 			Say( w.Owner is null ? "top level again" : "owned by the gallery - it stays above it and minimizes with it" );
 		} ) );
 
+		Button( ownership, "Toggle modal", () => With( w =>
+		{
+			w.Modal = !w.Modal;
+			Say( w.Modal ? (w.Owner is null ? "modal, but with no owner there's nothing to block" : "modal - this window is blocked until it closes") : "not modal" );
+		} ) );
+
 		var shell = Case( "Shell" );
 		Button( shell, "Toggle show in taskbar", () => With( w => { w.ShowInTaskbar = !w.ShowInTaskbar; Say( $"show in taskbar {w.ShowInTaskbar}" ); } ) );
 		Button( shell, "Set icon", () => With( w => { w.SetIcon( MakeIcon() ); Say( "icon set - look at the title bar and the taskbar" ); } ) );
