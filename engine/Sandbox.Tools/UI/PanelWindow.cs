@@ -373,6 +373,19 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	} = true;
 
 	/// <summary>
+	/// Whether the user can resize the window by its edges. Off makes the size whatever code says.
+	/// </summary>
+	public bool Resizable
+	{
+		get => field;
+		set
+		{
+			field = value;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetResizable( Handle, value );
+		}
+	} = true;
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
