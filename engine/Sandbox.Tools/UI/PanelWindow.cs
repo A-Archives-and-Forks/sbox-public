@@ -420,6 +420,34 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public bool IsFullscreen => Handle != IntPtr.Zero && PanelWindowNative.IsFullscreen( Handle );
 
 	/// <summary>
+	/// The whole of the display the window is on, in the same desktop coordinates as <see cref="Position"/>.
+	/// </summary>
+	public Rect DisplayBounds
+	{
+		get
+		{
+			if ( Handle == IntPtr.Zero ) return default;
+
+			PanelWindowNative.GetDisplayBounds( Handle, out var x, out var y, out var w, out var h );
+			return new Rect( x, y, w, h );
+		}
+	}
+
+	/// <summary>
+	/// The part of the window's display that isn't under the taskbar or a dock, in desktop coordinates.
+	/// </summary>
+	public Rect DisplayWorkArea
+	{
+		get
+		{
+			if ( Handle == IntPtr.Zero ) return default;
+
+			PanelWindowNative.GetDisplayWorkArea( Handle, out var x, out var y, out var w, out var h );
+			return new Rect( x, y, w, h );
+		}
+	}
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
@@ -732,6 +760,48 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 				PanelWindowNative.SetIcon( Handle, icon.Width, icon.Height, (IntPtr)p );
 			}
 		}
+	}
+
+	/// <summary>
+	/// The window's outer rectangle in desktop coordinates.
+	/// </summary>
+	Rect DesktopBounds
+	{
+		get
+		{
+			PanelWindowNative.GetBounds( Handle, out var x, out var y, out var w, out var h );
+			return new Rect( x, y, w, h );
+		}
+	}
+
+	/// <summary>
+	/// Centre the window on the usable part of its display.
+	/// </summary>
+	public void MoveToCenter()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+
+		var area = DisplayWorkArea;
+		var bounds = DesktopBounds;
+		Position = area.Position + (area.Size - bounds.Size) * 0.5f;
+	}
+
+	/// <summary>
+	/// Move the window the least distance that puts all of it on the usable part of its display.
+	/// A window taller or wider than the display keeps its top left on screen.
+	/// </summary>
+	public void SnapToDisplay()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+
+		var area = DisplayWorkArea;
+		var bounds = DesktopBounds;
+
+		var x = Math.Max( area.Left, Math.Min( bounds.Left, area.Right - bounds.Width ) );
+		var y = Math.Max( area.Top, Math.Min( bounds.Top, area.Bottom - bounds.Height ) );
+
+		if ( x == bounds.Left && y == bounds.Top ) return;
+		Position = new Vector2( x, y );
 	}
 
 	/// <summary>
