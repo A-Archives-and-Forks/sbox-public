@@ -376,3 +376,7 @@ $wb-orange: #ff8800;
 .gallery-page .demo-tree .tree-row:hover .eye, .gallery-page .demo-tree .tree-row.hidden .eye { opacity: 1; }
 .gallery-page .demo-tree .tree-row .eye:hover { color: $text; }
 .gallery-page .demo-tree .tree-row.hidden .tree-label, .gallery-page .demo-tree .tree-row.hidden .tree-icon { opacity: 0.4; }
+
+// Windows page - the body of the test window it opens
+.test-window-body { flex-direction: column; padding: 20px; width: 100%; height: 100%; background-color: $surface; }
+.test-window-body .textentry { margin-top: 12px; }
