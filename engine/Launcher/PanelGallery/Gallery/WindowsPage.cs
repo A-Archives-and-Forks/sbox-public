@@ -37,6 +37,11 @@ public class WindowsPage : GalleryPage
 		Button( geometry, "Toggle borderless fullscreen", () => With( w => { w.ExclusiveFullscreen = false; w.Fullscreen = !w.Fullscreen; Say( $"fullscreen {w.IsFullscreen}, borderless" ); } ) );
 		Button( geometry, "Toggle exclusive fullscreen", () => With( w => { w.ExclusiveFullscreen = true; w.Fullscreen = !w.Fullscreen; Say( $"fullscreen {w.IsFullscreen}, exclusive" ); } ) );
 
+		var attention = Case( "Attention" );
+		Button( attention, "Flash briefly", () => With( w => { w.FlashTaskbar(); Say( "flashed" ); } ) );
+		Button( attention, "Flash until focused", () => With( w => { w.FlashTaskbar( untilFocused: true ); Say( "flashing until it's focused" ); } ) );
+		Button( attention, "Stop flashing", () => With( w => { w.StopFlashing(); Say( "stopped" ); } ) );
+
 		var shell = Case( "Shell" );
 		Button( shell, "Toggle show in taskbar", () => With( w => { w.ShowInTaskbar = !w.ShowInTaskbar; Say( $"show in taskbar {w.ShowInTaskbar}" ); } ) );
 		Button( shell, "Set icon", () => With( w => { w.SetIcon( MakeIcon() ); Say( "icon set - look at the title bar and the taskbar" ); } ) );

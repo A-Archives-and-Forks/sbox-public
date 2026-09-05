@@ -818,6 +818,25 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// Flash the taskbar button to get the user's attention. Briefly by default; until focused
+	/// keeps going until they click the window.
+	/// </summary>
+	public void FlashTaskbar( bool untilFocused = false )
+	{
+		if ( Handle == IntPtr.Zero ) return;
+		PanelWindowNative.Flash( Handle, untilFocused ? 2 : 1 );
+	}
+
+	/// <summary>
+	/// Stop a <see cref="FlashTaskbar"/> that's still going.
+	/// </summary>
+	public void StopFlashing()
+	{
+		if ( Handle == IntPtr.Zero ) return;
+		PanelWindowNative.Flash( Handle, 0 );
+	}
+
+	/// <summary>
 	/// Bring the window to the front.
 	/// </summary>
 	public void Focus()

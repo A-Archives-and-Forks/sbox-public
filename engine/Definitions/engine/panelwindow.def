@@ -58,6 +58,7 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	bool IsFullscreen( CastTo[void*] IntPtr window );
 	void GetDisplayBounds( CastTo[void*] IntPtr window, out int x, out int y, out int width, out int height );
 	void GetDisplayWorkArea( CastTo[void*] IntPtr window, out int x, out int y, out int width, out int height );
+	void Flash( CastTo[void*] IntPtr window, int operation );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );
