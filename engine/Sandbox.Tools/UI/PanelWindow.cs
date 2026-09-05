@@ -112,9 +112,16 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	IPanelWindow IPanelWindow.Parent => ParentWindow;
 
 	/// <summary>
-	/// Called when the user clicks the window's close button. The window closes if this is null.
+	/// The user asked to close the window. Return false to keep it open - an unsaved changes
+	/// prompt, say. Otherwise it's disposed, or hidden when <see cref="HideOnClose"/> is set.
 	/// </summary>
-	public Action OnCloseRequested { get; set; }
+	public Func<bool> OnCloseRequested { get; set; }
+
+	/// <summary>
+	/// When the user closes the window, hide it instead of disposing it, so it can be shown again
+	/// with everything still in it. Off by default: closing disposes.
+	/// </summary>
+	public bool HideOnClose { get; set; }
 
 	/// <summary>
 	/// The window moved, whether the user dragged it or code set <see cref="Position"/>.
@@ -768,9 +775,12 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public void RequestClose()
 	{
-		if ( OnCloseRequested is not null )
+		if ( OnCloseRequested?.Invoke() == false )
+			return;
+
+		if ( HideOnClose )
 		{
-			OnCloseRequested();
+			Hide();
 			return;
 		}
 

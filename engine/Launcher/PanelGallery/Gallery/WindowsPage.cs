@@ -57,6 +57,8 @@ public class WindowsPage : GalleryPage
 			Say( w.Modal ? (w.Owner is null ? "modal, but with no owner there's nothing to block" : "modal - this window is blocked until it closes") : "not modal" );
 		} ) );
 
+		Button( ownership, "Toggle hide on close", () => With( w => { w.HideOnClose = !w.HideOnClose; Say( $"hide on close {w.HideOnClose}" ); } ) );
+
 		var shell = Case( "Shell" );
 		Button( shell, "Toggle show in taskbar", () => With( w => { w.ShowInTaskbar = !w.ShowInTaskbar; Say( $"show in taskbar {w.ShowInTaskbar}" ); } ) );
 		Button( shell, "Set icon", () => With( w => { w.SetIcon( MakeIcon() ); Say( "icon set - look at the title bar and the taskbar" ); } ) );
@@ -77,7 +79,7 @@ public class WindowsPage : GalleryPage
 		var position = parent is null ? new Vector2( -1, -1 ) : parent.Position + new Vector2( 80, 80 );
 
 		window = new PanelWindow( "Test window", new Vector2( 420, 260 ), position );
-		window.OnCloseRequested = () => { window.Dispose(); window = null; Say( "closed by the OS" ); };
+		window.OnCloseRequested = () => { Say( window.HideOnClose ? "close asked - hiding, Show brings it back" : "close asked - disposing" ); if ( !window.HideOnClose ) window = null; return true; };
 		window.OnMoved = () => Say( $"moved to {window?.Position}" );
 		window.OnResized = () => Say( $"resized to {window?.Size}" );
 		window.OnMinimized = () => Say( "minimized" );
