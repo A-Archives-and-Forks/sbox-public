@@ -47,6 +47,7 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void SetDropShadow( CastTo[void*] IntPtr window, bool dropShadow );
 	void SetRoundedCorners( CastTo[void*] IntPtr window, bool rounded );
 
+	void SetAlwaysOnTop( CastTo[void*] IntPtr window, bool onTop );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );

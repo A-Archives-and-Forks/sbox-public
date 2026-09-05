@@ -330,6 +330,20 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public bool IsMinimized => Handle != IntPtr.Zero && PanelWindowNative.IsMinimized( Handle );
 
 	/// <summary>
+	/// Keep the window above every window that isn't. Palettes, overlays, a video you want to
+	/// keep watching while working in something else.
+	/// </summary>
+	public bool KeepOnTop
+	{
+		get => field;
+		set
+		{
+			field = value;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetAlwaysOnTop( Handle, value );
+		}
+	}
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
