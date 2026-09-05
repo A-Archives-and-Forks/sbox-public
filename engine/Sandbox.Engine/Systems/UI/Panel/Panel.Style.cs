@@ -84,9 +84,9 @@ public partial class Panel
 		{
 			_pendingRebuildRoot_Children = root;
 
-			foreach ( var child in Children )
+			for ( int i = 0; i < _children.Count; i++ )
 			{
-				child.StyleSelectorsChanged( false, true, root );
+				_children[i]?.StyleSelectorsChanged( false, true, root );
 			}
 		}
 

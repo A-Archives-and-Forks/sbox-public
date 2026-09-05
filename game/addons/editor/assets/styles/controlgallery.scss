@@ -363,3 +363,16 @@ $wb-orange: #ff8800;
 	background-color: $wb-black;
 	transform: none;
 }
+
+// Tree view - the demo tree needs a size; the engine default styles do the rest
+.gallery-page .demo-tree { width: 520px; height: 420px; flex-grow: 0; flex-shrink: 0; border: 1px solid $line; border-radius: 8px; background-color: $surface; }
+.gallery-page .demo-tree .tree-row.section { font-weight: 700; color: $text-faint; }
+.gallery-page .demo-tree .tree-row .tree-icon { color: $text-faint; }
+.gallery-page .demo-tree .tree-row.selected { background-color: rgba( $accent, 0.25 ); }
+.gallery-page .demo-tree .tree-row.drop-target { background-color: rgba( $accent, 0.45 ); }
+.gallery-page .demo-tree .tree-row.highlight { background-color: rgba( $accent, 0.7 ); }
+.gallery-page .demo-tree .tree-row.highlight-fade { background-color: rgba( $accent, 0 ); }
+.gallery-page .demo-tree .tree-row .eye { width: 22px; font-size: 15px; color: $text-faint; opacity: 0; cursor: pointer; margin-right: 4px; }
+.gallery-page .demo-tree .tree-row:hover .eye, .gallery-page .demo-tree .tree-row.hidden .eye { opacity: 1; }
+.gallery-page .demo-tree .tree-row .eye:hover { color: $text; }
+.gallery-page .demo-tree .tree-row.hidden .tree-label, .gallery-page .demo-tree .tree-row.hidden .tree-icon { opacity: 0.4; }

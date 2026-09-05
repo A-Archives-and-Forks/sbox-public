@@ -152,7 +152,7 @@ internal static partial class InputRouter
 		// Only the UI that has the mouse gets to show a tooltip - the one underneath it loses its hover
 		foreach ( var context in Contexts )
 		{
-			context.TargetUISystem?.Tooltips.SetHovered( context == activeMouse ? activeMouse.MouseFocusPanel as Panel : null );
+			context.TargetUISystem?.Tooltips.SetHovered( context == activeMouse ? activeMouse.MouseFocusPanel as Panel : null, MouseCursorPosition );
 		}
 	}
 

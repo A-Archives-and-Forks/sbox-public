@@ -274,7 +274,7 @@ internal partial class UISystem
 		InputEventQueue.TickFocused( CurrentFocus ?? RootPanels.FirstOrDefault() );
 		InputEventQueue.Tick( Input.Hovered, Input.Active );
 
-		Tooltips.SetHovered( allowMouseInput ? Input.Hovered : null );
+		Tooltips.SetHovered( allowMouseInput ? Input.Hovered : null, Input.CursorPosition );
 		Tooltips.Frame( Input.CursorPosition, allowMouseInput );
 	}
 

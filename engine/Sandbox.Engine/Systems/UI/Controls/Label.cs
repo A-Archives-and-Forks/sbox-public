@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Sandbox.Html;
 using System.Globalization;
 
@@ -242,6 +242,13 @@ namespace Sandbox.UI
 		/// </summary>
 		protected void CaretSantity()
 		{
+			// Nothing to clamp on a label nobody is editing, and counting text elements allocates
+			if ( CaretPosition == 0 && SelectionStart == 0 && SelectionEnd == 0 )
+			{
+				ClampScroll();
+				return;
+			}
+
 			if ( CaretPosition > TextLength )
 			{
 				CaretPosition = TextLength;

@@ -147,6 +147,35 @@ public class TooltipTests
 	}
 
 	/// <summary>
+	/// Content scrolling under a resting cursor changes the hovered panel without the mouse
+	/// moving. That takes the old tooltip down but shows nothing new until the mouse itself moves,
+	/// so a wheel scroll doesn't flick through a tooltip for every row that passes.
+	/// </summary>
+	[TestMethod]
+	public void ScrollingUnderARestingCursorWaitsForMovement()
+	{
+		var a = Add( "A" );
+		var b = Add( "B" );
+		var cursor = new Vector2( 10, 10 );
+
+		tooltips.SetHovered( a, cursor );
+		tooltips.Frame( cursor, true );
+		Assert.AreEqual( "A", TextOf( host.Shown ) );
+
+		// B scrolled under the same cursor position
+		tooltips.SetHovered( b, cursor );
+		Assert.IsFalse( tooltips.IsShowing );
+		tooltips.Frame( cursor, true );
+		Assert.IsFalse( tooltips.IsShowing );
+
+		// The mouse moves, still over B
+		cursor += new Vector2( 1, 0 );
+		tooltips.SetHovered( b, cursor );
+		tooltips.Frame( cursor, true );
+		Assert.AreEqual( "B", TextOf( host.Shown ) );
+	}
+
+	/// <summary>
 	/// The tooltip comes down when the cursor leaves, and moving to another panel swaps it for
 	/// that panel's.
 	/// </summary>

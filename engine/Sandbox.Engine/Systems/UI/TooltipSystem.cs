@@ -45,6 +45,10 @@ internal sealed class TooltipSystem
 	// the way the OS's do, rather than popping straight back up under the cursor.
 	Panel suppressed;
 
+	// The hover changed under a still cursor - content scrolled beneath it. No tooltip until it moves.
+	Vector2 lastCursor;
+	bool waitForMove;
+
 	/// <summary>
 	/// How long the cursor rests on a panel before its tooltip appears, in seconds. Game UI shows
 	/// them straight away; a surface waits, the way the desktop does.
@@ -76,12 +80,28 @@ internal sealed class TooltipSystem
 	/// The panel under the cursor this frame, or null. Walks up to the first ancestor with a
 	/// tooltip, so a tooltip on a container covers everything in it.
 	/// </summary>
-	internal void SetHovered( Panel current )
+	internal void SetHovered( Panel current, Vector2 cursor )
+	{
+		var moved = cursor != lastCursor;
+		lastCursor = cursor;
+
+		SetHovered( current, moved );
+	}
+
+	/// <summary>
+	/// The panel under the cursor this frame, treating it as the cursor having moved there.
+	/// </summary>
+	internal void SetHovered( Panel current ) => SetHovered( current, true );
+
+	void SetHovered( Panel current, bool moved )
 	{
 		while ( current is not null && !current.HasTooltip )
 		{
 			current = current.Parent;
 		}
+
+		if ( moved )
+			waitForMove = false;
 
 		if ( current == hovered )
 			return;
@@ -90,6 +110,11 @@ internal sealed class TooltipSystem
 
 		hovered = current;
 		hoverStart = RealTime.Now;
+
+		// Scrolling brought a new panel under a resting cursor - showing its tooltip would flicker
+		// through every row that passes. Wait for the mouse itself to move.
+		if ( !moved )
+			waitForMove = true;
 
 		// The cursor moved on - whatever kept the old panel's tooltip down is over
 		if ( suppressed != current )
@@ -131,7 +156,7 @@ internal sealed class TooltipSystem
 			return;
 		}
 
-		if ( hovered is null || hovered == suppressed )
+		if ( hovered is null || hovered == suppressed || waitForMove )
 			return;
 
 		if ( !hovered.IsValid() )

@@ -20,6 +20,7 @@ public record GalleryPageInfo( string Title, string Icon, Func<Panel> Create )
 		new( "Folder Select", "folder_open", () => new FolderSelectorPage() ),
 		new( "Sliders", "tune", () => new SlidersPage() ),
 		new( "Split Container", "vertical_split", () => new SplitContainerPage() ),
+		new( "Tree View", "account_tree", () => new TreeViewPage() ),
 		new( "Images", "image", () => new DisplayPanelsPage() ),
 		new( "Dragging", "drag_indicator", () => new DragPage() ),
 		new( "Drag & Drop", "move_to_inbox", () => new DropPage() ),
