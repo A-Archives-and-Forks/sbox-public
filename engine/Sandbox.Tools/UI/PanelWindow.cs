@@ -133,7 +133,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public Action OnDisplayChanged { get; set; }
 
-	void IPanelWindow.Moved() => OnMoved?.Invoke();
+	void IPanelWindow.Moved() => OnMoved?.InvokeWithWarning();
 
 	/// <summary>
 	/// The window's client size changed, whether the user dragged an edge or code set <see cref="Size"/>.
@@ -164,7 +164,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		if ( size == _lastPixelSize ) return;
 
 		_lastPixelSize = size;
-		OnResized?.Invoke();
+		OnResized?.InvokeWithWarning();
 	}
 
 	/// <summary>
@@ -180,20 +180,20 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 
 	void IPanelWindow.FocusChanged( bool focused )
 	{
-		if ( focused ) OnActivated?.Invoke();
-		else OnDeactivated?.Invoke();
+		if ( focused ) OnActivated?.InvokeWithWarning();
+		else OnDeactivated?.InvokeWithWarning();
 	}
 
 	void IPanelWindow.StateChanged( int state )
 	{
 		switch ( state )
 		{
-			case 1: OnMinimized?.Invoke(); break;
-			case 2: OnMaximized?.Invoke(); break;
-			default: OnRestored?.Invoke(); break;
+			case 1: OnMinimized?.InvokeWithWarning(); break;
+			case 2: OnMaximized?.InvokeWithWarning(); break;
+			default: OnRestored?.InvokeWithWarning(); break;
 		}
 	}
-	void IPanelWindow.DisplayChanged() => OnDisplayChanged?.Invoke();
+	void IPanelWindow.DisplayChanged() => OnDisplayChanged?.InvokeWithWarning();
 
 	/// <summary>
 	/// What the window clears to before the UI is drawn.
@@ -792,8 +792,18 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public void RequestClose()
 	{
-		if ( OnCloseRequested?.Invoke() == false )
-			return;
+		if ( OnCloseRequested is not null )
+		{
+			try
+			{
+				if ( !OnCloseRequested() ) return;
+			}
+			catch ( Exception e )
+			{
+				// A broken close guard shouldn't leave a window that can't be closed
+				Log.Warning( e, e.Message );
+			}
+		}
 
 		if ( HideOnClose )
 		{
