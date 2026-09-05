@@ -24,6 +24,7 @@ public class WindowsPage : GalleryPage
 		var visibility = Case( "Visibility" );
 		Button( visibility, "Hide", () => With( w => { w.Hide(); Say( $"hidden, visible {w.IsVisible}" ); } ) );
 		Button( visibility, "Show", () => With( w => { w.Show(); Say( $"shown, visible {w.IsVisible}" ); } ) );
+		Button( visibility, "Maximize", () => With( w => { w.Maximize(); Say( "maximize asked" ); } ) );
 		Button( visibility, "Minimize", () => With( w => { w.Minimize(); Say( $"minimized {w.IsMinimized}" ); } ) );
 		Button( visibility, "Opacity 100%", () => With( w => { w.Opacity = 1; Say( "opacity 1" ); } ) );
 		Button( visibility, "Opacity 50%", () => With( w => { w.Opacity = 0.5f; Say( "opacity 0.5" ); } ) );
@@ -64,6 +65,10 @@ public class WindowsPage : GalleryPage
 		window = new PanelWindow( "Test window", new Vector2( 420, 260 ), position );
 		window.OnCloseRequested = () => { window.Dispose(); window = null; Say( "closed by the OS" ); };
 		window.OnMoved = () => Say( $"moved to {window?.Position}" );
+		window.OnResized = () => Say( $"resized to {window?.Size}" );
+		window.OnMinimized = () => Say( "minimized" );
+		window.OnMaximized = () => Say( "maximized" );
+		window.OnRestored = () => Say( "restored" );
 		window.OnDisplayChanged = () => Say( $"now on display {window?.DisplayBounds}" );
 
 		var body = window.Root.Add.Panel( "test-window-body" );

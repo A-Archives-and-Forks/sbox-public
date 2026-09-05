@@ -68,6 +68,16 @@ internal interface IPanelWindow
 	void Moved();
 
 	/// <summary>
+	/// The OS reported a size change. Also arrives for exposes, so check the size actually moved.
+	/// </summary>
+	void Resized();
+
+	/// <summary>
+	/// Minimized (1), maximized (2) or restored from either (0).
+	/// </summary>
+	void StateChanged( int state );
+
+	/// <summary>
 	/// The window is now on a different display.
 	/// </summary>
 	void DisplayChanged();

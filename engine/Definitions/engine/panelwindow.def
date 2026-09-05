@@ -111,6 +111,8 @@ managed static class Sandbox.UI.PanelWindowInput
 	static void OnResized( IntPtr window );
 	static void OnClose( IntPtr window );
 	static void OnMoved( IntPtr window );
+	// The window was minimized (1), maximized (2), or restored from either (0)
+	static void OnStateChanged( IntPtr window, int state );
 	// The window crossed onto another display, which may scale differently
 	static void OnDisplayChanged( IntPtr window );
 

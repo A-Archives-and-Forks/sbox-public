@@ -127,6 +127,48 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public Action OnDisplayChanged { get; set; }
 
 	void IPanelWindow.Moved() => OnMoved?.Invoke();
+
+	/// <summary>
+	/// The window's client size changed, whether the user dragged an edge or code set <see cref="Size"/>.
+	/// </summary>
+	public Action OnResized { get; set; }
+
+	/// <summary>
+	/// The window was minimized to the taskbar.
+	/// </summary>
+	public Action OnMinimized { get; set; }
+
+	/// <summary>
+	/// The window was maximized.
+	/// </summary>
+	public Action OnMaximized { get; set; }
+
+	/// <summary>
+	/// The window came back from being minimized or maximized.
+	/// </summary>
+	public Action OnRestored { get; set; }
+
+	Vector2 _lastPixelSize;
+
+	void IPanelWindow.Resized()
+	{
+		// SDL sends these for exposes too, and a resize drag sends several per frame
+		var size = PixelSize;
+		if ( size == _lastPixelSize ) return;
+
+		_lastPixelSize = size;
+		OnResized?.Invoke();
+	}
+
+	void IPanelWindow.StateChanged( int state )
+	{
+		switch ( state )
+		{
+			case 1: OnMinimized?.Invoke(); break;
+			case 2: OnMaximized?.Invoke(); break;
+			default: OnRestored?.Invoke(); break;
+		}
+	}
 	void IPanelWindow.DisplayChanged() => OnDisplayChanged?.Invoke();
 
 	/// <summary>

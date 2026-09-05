@@ -227,10 +227,19 @@ internal static class PanelWindowInput
 	/// </summary>
 	internal static void OnResized( IntPtr window )
 	{
-		if ( PanelWindows.Find( window )?.Frame( interactiveResize: true ) == true )
+		if ( PanelWindows.Find( window ) is not { } target ) return;
+
+		target.Resized();
+
+		if ( target.Frame( interactiveResize: true ) )
 		{
 			PanelWindows.FrameEnd();
 		}
+	}
+
+	internal static void OnStateChanged( IntPtr window, int state )
+	{
+		PanelWindows.Find( window )?.StateChanged( state );
 	}
 
 	internal static void OnClose( IntPtr window )
