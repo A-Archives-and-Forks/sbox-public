@@ -167,6 +167,23 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		OnResized?.Invoke();
 	}
 
+	/// <summary>
+	/// The window became the active one - it has the keyboard, its title bar lit up.
+	/// </summary>
+	public Action OnActivated { get; set; }
+
+	/// <summary>
+	/// The window stopped being the active one: the user went to another window, ours or
+	/// someone else's.
+	/// </summary>
+	public Action OnDeactivated { get; set; }
+
+	void IPanelWindow.FocusChanged( bool focused )
+	{
+		if ( focused ) OnActivated?.Invoke();
+		else OnDeactivated?.Invoke();
+	}
+
 	void IPanelWindow.StateChanged( int state )
 	{
 		switch ( state )

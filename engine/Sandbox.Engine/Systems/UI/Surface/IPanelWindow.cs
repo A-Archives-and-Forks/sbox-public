@@ -78,6 +78,11 @@ internal interface IPanelWindow
 	void StateChanged( int state );
 
 	/// <summary>
+	/// The window took or lost the OS keyboard focus.
+	/// </summary>
+	void FocusChanged( bool focused );
+
+	/// <summary>
 	/// The window is now on a different display.
 	/// </summary>
 	void DisplayChanged();

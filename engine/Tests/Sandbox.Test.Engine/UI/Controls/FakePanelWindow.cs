@@ -23,6 +23,7 @@ sealed class FakePanelWindow : IPanelWindow, IPopupHost
 	public void Moved() { }
 	public void Resized() { }
 	public void StateChanged( int state ) { }
+	public void FocusChanged( bool focused ) { }
 	public void DisplayChanged() { }
 	public bool IsPopup { get; init; }
 	public IPanelWindow Parent { get; init; }

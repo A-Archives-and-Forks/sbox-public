@@ -203,6 +203,8 @@ internal static class PanelWindowInput
 	{
 		if ( PanelWindows.Find( window ) is not { } target ) return;
 
+		target.FocusChanged( focused );
+
 		if ( !focused )
 		{
 			target.MouseInside = false;

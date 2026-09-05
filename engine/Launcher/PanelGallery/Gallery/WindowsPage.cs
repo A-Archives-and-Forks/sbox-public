@@ -85,6 +85,8 @@ public class WindowsPage : GalleryPage
 		window.OnMinimized = () => Say( "minimized" );
 		window.OnMaximized = () => Say( "maximized" );
 		window.OnRestored = () => Say( "restored" );
+		window.OnActivated = () => Say( "activated" );
+		window.OnDeactivated = () => Say( "deactivated" );
 		window.OnDisplayChanged = () => Say( $"now on display {window?.DisplayBounds}" );
 
 		var body = window.Root.Add.Panel( "test-window-body" );
