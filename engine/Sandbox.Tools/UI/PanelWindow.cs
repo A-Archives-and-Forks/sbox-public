@@ -344,6 +344,19 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// How see-through the whole window is, contents included. 1 is opaque, 0 is invisible.
+	/// </summary>
+	public float Opacity
+	{
+		get => field;
+		set
+		{
+			field = Math.Clamp( value, 0, 1 );
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetOpacity( Handle, field );
+		}
+	} = 1;
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
