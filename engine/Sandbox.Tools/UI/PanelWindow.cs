@@ -357,6 +357,22 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	} = 1;
 
 	/// <summary>
+	/// Whether the window gets a button in the taskbar. On by default; a palette or a floating
+	/// panel that belongs to another window usually turns it off.
+	/// </summary>
+	public bool ShowInTaskbar
+	{
+		get => field;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetShowInTaskbar( Handle, value );
+		}
+	} = true;
+
+	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
 	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
