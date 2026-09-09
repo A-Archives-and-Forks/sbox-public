@@ -461,7 +461,12 @@ internal class PanelInput
 			IGameInstanceDll.Current?.ClosePopups( hovered );
 
 			if ( Active == null )
+			{
+				// A press over nothing can't drag - clear the last press's target or the drag watch dereferences a null Active
+				Dragged = false;
+				DragTarget = null;
 				return;
+			}
 
 			Panel.Switch( PseudoClass.Active, true, Active );
 
