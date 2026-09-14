@@ -60,6 +60,7 @@
         StateHasChanged();
 
         var removing = IsNominated;
+        _override = !removing;
         string reason;
 
         try
@@ -76,12 +77,9 @@
 
         _busy = false;
 
-        if ( reason is null )
+        if ( reason is not null )
         {
-            _override = !removing;
-        }
-        else
-        {
+            _override = removing;
             MenuOverlay.Instance?.BottomRight?.Queue( new Toast() { Title = reason, Icon = "how_to_vote" } );
         }
 
