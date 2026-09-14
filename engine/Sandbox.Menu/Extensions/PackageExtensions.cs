@@ -37,6 +37,23 @@ public static partial class SandboxMenuExtensions
 	}
 
 	/// <summary>
+	/// Hide this package from the local player's discovery and search. False if the backend refused.
+	/// </summary>
+	public static async Task<bool> SetHiddenAsync( this Package package, bool hidden )
+	{
+		try
+		{
+			await Sandbox.Backend.Account.SetPackageHidden( package.FullIdent, hidden );
+			return true;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't hide {package.FullIdent} ({e.Message})" );
+			return false;
+		}
+	}
+
+	/// <summary>
 	/// Add your vote for this package
 	/// </summary>
 	public static async Task SetVoteAsync( this Package package, bool up )
