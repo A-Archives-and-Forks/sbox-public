@@ -120,6 +120,37 @@ PackageHoverCard
 		margin-top: -4px;
 		overflow: hidden;
 
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		.tag
+		{
+			flex-shrink: 0;
+			font-family: $front-font;
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-secondary;
+			cursor: pointer;
+			transition: color 0.1s ease;
+
+			&:hover
+			{
+				color: $front-heading;
+			}
+
+			&.plain
+			{
+				cursor: default;
+
+				&:hover
+				{
+					color: $front-secondary;
+				}
+			}
+		}
+
 		label, .sep
 		{
 			flex-shrink: 0;
@@ -231,6 +262,7 @@ PackageHoverCard
 	.jam
 	{
 		flex-direction: row;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 10px;
 		margin: 8px 0 6px 0;
@@ -341,26 +373,16 @@ PackageHoverCard
 		}
 	}
 
-	.tags
+	.footer
 	{
 		flex-direction: row;
-		flex-wrap: nowrap;
-		flex-grow: 1;
-		flex-shrink: 1;
-		gap: 4px;
-		overflow: hidden;
+		align-items: center;
+		gap: 8px;
+		margin-top: 8px;
 
-		.tag
+		.grow
 		{
-			flex-shrink: 0;
-			padding: 3px 8px;
-			border-radius: 999px;
-			border: 1px solid $front-hairline;
-			background-color: rgba( 255, 255, 255, 0.05 );
-			font-size: 10px;
-			font-weight: 600;
-			letter-spacing: 0.03em;
-			color: $front-body;
+			flex-grow: 1;
 		}
 	}
 
@@ -368,7 +390,41 @@ PackageHoverCard
 	{
 		flex-direction: row;
 		flex-shrink: 0;
-		gap: 6px;
+		align-items: center;
+		gap: 10px;
+
+		.group
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			border-radius: 999px;
+			border: 1px solid $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			overflow: hidden;
+
+			.button
+			{
+				width: 38px;
+				border: 0;
+				border-radius: 0;
+				background-color: transparent;
+
+				&:hover
+				{
+					background-color: rgba( 255, 255, 255, 0.12 );
+				}
+
+				&.active
+				{
+					background-color: rgba( $front-primary, 0.28 );
+				}
+
+				&.fav.active
+				{
+					background-color: rgba( #e93b6d, 0.25 );
+				}
+			}
+		}
 
 		.button
 		{
@@ -403,6 +459,28 @@ PackageHoverCard
 				sound-in: "ui.button.press";
 			}
 
+			&.active
+			{
+				border-color: rgba( $front-primary, 0.7 );
+				background-color: rgba( $front-primary, 0.22 );
+
+				icon
+				{
+					color: $front-primary * 1.6;
+				}
+			}
+
+			&.fav.active
+			{
+				border-color: rgba( #e93b6d, 0.7 );
+				background-color: rgba( #e93b6d, 0.2 );
+
+				icon
+				{
+					color: #e93b6d;
+				}
+			}
+
 			&.primary
 			{
 				flex-direction: row;
@@ -434,6 +512,12 @@ PackageHoverCard
 				{
 					background-color: $front-primary * 1.2;
 				}
+			}
+
+			&.busy
+			{
+				opacity: 0.5;
+				pointer-events: none;
 			}
 		}
 	}

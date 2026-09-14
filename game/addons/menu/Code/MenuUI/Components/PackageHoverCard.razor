@@ -55,6 +55,25 @@
                     <label>@PlayersText()</label>
                 </div>
             }
+
+            <div class="grow" />
+
+            @{ var tags = Tags().ToList(); }
+            @for ( int i = 0; i < tags.Count; i++ )
+            {
+                if ( i > 0 )
+                {
+                    <label class="sep">·</label>
+                }
+                @if ( HasTag( tags[i] ) )
+                {
+                    <a class="tag" href=@TagUrl( tags[i] )>@TagLabel( tags[i] )</a>
+                }
+                else
+                {
+                    <label class="tag plain">@TagLabel( tags[i] )</label>
+                }
+            }
         </div>
 
         @if ( !string.IsNullOrWhiteSpace( Package.Summary ) )
@@ -64,25 +83,6 @@
             </div>
         }
 
-        <div class="footer">
-            <div class="tags">
-                @foreach ( var tag in Tags() )
-                {
-                    <label class="tag">@tag</label>
-                }
-            </div>
-
-            <div class="actions">
-                @if ( Package.TypeName == "game" && MenuHelpers.HasAuthority )
-                {
-                    <div class="button primary" onclick=@Play>
-                        <icon>play_arrow</icon>
-                        <label>Play</label>
-                    </div>
-                }
-                <div class="button" onclick=@OpenDetails tooltip="Details">
-                    <icon>info</icon>
-                </div>
         @if ( ShowJam )
         {
             <div class="jam @( _nominated ? "on" : "" )">
@@ -98,7 +98,43 @@
             </div>
         }
 
+        <div class="footer">
+            <div class="actions">
+                <div class="group">
+                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+                        <icon>thumb_up</icon>
+                    </div>
+                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+                        <icon>thumb_down</icon>
+                    </div>
+                </div>
+                <div class="group">
+                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+                        <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
+                    </div>
+                    <div class="button" onclick=@Review tooltip="Write a review">
+                        <icon>rate_review</icon>
+                    </div>
+                </div>
+                @if ( Package.TypeName == "game" )
+                {
+                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
+                        <icon>block</icon>
+                    </div>
+                }
             </div>
+
+            <div class="grow" />
+
+            @if ( Package.TypeName == "game" && MenuHelpers.HasAuthority )
+            {
+                <div class="actions">
+                    <div class="button primary" onclick=@Play>
+                        <icon>play_arrow</icon>
+                        <label>Play</label>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </root>
@@ -119,6 +155,16 @@
     bool continuedVideo;
     string videoUrl;
     Rect placed;
+
+    Jam _jam;
+    JamEntryStatus _entry;
+    bool _nominated;
+    bool _busy;
+    bool _hiding;
+
+    bool ShowJam => _jam is not null && _entry.IsEntry;
+    bool CanToggleNomination => _nominated || _entry.CanNominate;
+    string JamHint => _nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason;
 
     static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
 
@@ -144,59 +190,13 @@
         card.Reposition();
 
         Current = card;
-        return card;
-    }
-
-    public void Close()
-    {
-        if ( Current == this )
-            Current = null;
-
-        Delete();
-    }
-
-    public override void OnDeleted()
-    Jam _jam;
-    JamEntryStatus _entry;
-    bool _nominated;
-    bool _busy;
-    bool _hiding;
-
-    bool ShowJam => _jam is not null && _entry.IsEntry;
-    bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamHint => _nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason;
-
-    {
-        base.OnDeleted();
-
-        if ( Current == this )
-            Current = null;
-    }
-
-    public override void Tick()
-    {
-        base.Tick();
-
-        if ( IsDeleting )
-            return;
-
-        if ( !Source.IsValid() || !Source.IsVisible || Source.Box.Rect.Width <= 0 )
-        {
-            Close();
-            return;
-        }
-
-        var age = RealTime.Now - openedAt;
-
-        if ( age > HoverGrace && !HasHovered && !Source.HasHovered )
-        {
 
         if ( package.TypeName == "game" )
             _ = card.LoadJam();
 
-            Close();
-            return;
-        }
+        return card;
+    }
+
     async Task LoadJam()
     {
         var jam = await Jam.GetActive();
@@ -266,6 +266,42 @@
 
     static void ShowToast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
 
+    public void Close()
+    {
+        if ( Current == this )
+            Current = null;
+
+        Delete();
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if ( Current == this )
+            Current = null;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( IsDeleting )
+            return;
+
+        if ( !Source.IsValid() || !Source.IsVisible || Source.Box.Rect.Width <= 0 )
+        {
+            Close();
+            return;
+        }
+
+        var age = RealTime.Now - openedAt;
+
+        if ( age > HoverGrace && !HasHovered && !Source.HasHovered )
+        {
+            Close();
+            return;
+        }
 
         if ( !showVideo && age >= VideoDelay )
         {
@@ -336,6 +372,41 @@
     }
 
     void OpenMenu() => MenuHelpers.OpenPackageMenu( this, Package );
+
+    void Review()
+    {
+        Game.Overlay.ShowReviewModal( Package );
+        Close();
+    }
+
+    // Rating: 0 like, 1 dislike, null unrated
+    bool Liked => Package.Interaction.Rating == 0;
+    bool Disliked => Package.Interaction.Rating == 1;
+
+    async Task Vote( bool up )
+    {
+        await Package.SetVoteAsync( up );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    static string TagLabel( string tag ) => tag switch
+    {
+        "multiplayer" => "Multiplayer",
+        "singleplayer" => "Singleplayer",
+        _ => GenreLabels.GetValueOrDefault( tag, tag ),
+    };
+
+    // Multiplayer can be inferred from MaxPlayers, so only real tags link
+    bool HasTag( string tag ) => Package.Tags?.Contains( tag, StringComparer.OrdinalIgnoreCase ) ?? false;
+
+    // %2B so the + survives the query-string decode
+    static string TagUrl( string tag ) => $"/games/all?Sort=&Filter=%2B{tag}";
 
     string Byline()
     {
@@ -422,7 +493,7 @@
     IEnumerable<string> Tags()
     {
         var tags = Package.Tags ?? Array.Empty<string>();
-        var genres = tags.Select( x => GenreLabels.GetValueOrDefault( x ) ).Where( x => x is not null ).Distinct();
+        var genres = tags.Where( x => GenreLabels.ContainsKey( x ) ).Select( x => x.ToLowerInvariant() ).DistinctBy( x => GenreLabels[x] );
         var mode = PlayerMode();
 
         return mode is null ? genres.Take( 2 ) : genres.Take( 1 ).Prepend( mode );
@@ -434,8 +505,8 @@
         var tags = Package.Tags ?? Array.Empty<string>();
         var max = Package.GetMeta( "MaxPlayers", 0 );
 
-        if ( tags.Contains( "multiplayer" ) || tags.Contains( "coop" ) || tags.Contains( "pvp" ) || max > 1 ) return "Multiplayer";
-        if ( tags.Contains( "singleplayer" ) || max == 1 ) return "Singleplayer";
+        if ( tags.Contains( "multiplayer" ) || tags.Contains( "coop" ) || tags.Contains( "pvp" ) || max > 1 ) return "multiplayer";
+        if ( tags.Contains( "singleplayer" ) || max == 1 ) return "singleplayer";
 
         return null;
     }

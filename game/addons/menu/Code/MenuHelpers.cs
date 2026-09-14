@@ -2,6 +2,7 @@
 using Sandbox.DataModel;
 using Sandbox.Diagnostics;
 using Sandbox.Modals;
+using MenuProject.MenuUI.Front;
 using MenuPanel = MenuProject.UI.MenuPanel;
 
 public static class MenuHelpers
@@ -13,7 +14,6 @@ public static class MenuHelpers
 	public static bool HasAuthority => PartyRoom.Current?.Owner.IsMe ?? true;
 
 	/// <summary>
-	/// <summary>
 	/// True when a discovery query lists a jam's entries, e.g. "jam:three type:game".
 	/// </summary>
 	public static bool IsJamQuery( string query )
@@ -23,6 +23,7 @@ public static class MenuHelpers
 		return query.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).Any( x => x.StartsWith( "jam:", StringComparison.OrdinalIgnoreCase ) );
 	}
 
+	/// <summary>
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
 	/// create-game modal, VR-only checks, default map fetching, and direct launch.
 	/// </summary>
@@ -225,6 +226,8 @@ public static class MenuHelpers
 		{
 			menu.AddOption( "play_arrow", "Join existing session", () => OnPackageSelected( package ) );
 			menu.AddOption( "playlist_add", "Create own game", () => CreateGameWithMap( SANDBOX_IDENT, package ) );
+	static void Toast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
+
 
 			menu.AddSpacer();
 		}
