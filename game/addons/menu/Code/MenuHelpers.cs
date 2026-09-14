@@ -13,6 +13,16 @@ public static class MenuHelpers
 	public static bool HasAuthority => PartyRoom.Current?.Owner.IsMe ?? true;
 
 	/// <summary>
+	/// <summary>
+	/// True when a discovery query lists a jam's entries, e.g. "jam:three type:game".
+	/// </summary>
+	public static bool IsJamQuery( string query )
+	{
+		if ( string.IsNullOrEmpty( query ) ) return false;
+
+		return query.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).Any( x => x.StartsWith( "jam:", StringComparison.OrdinalIgnoreCase ) );
+	}
+
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
 	/// create-game modal, VR-only checks, default map fetching, and direct launch.
 	/// </summary>
