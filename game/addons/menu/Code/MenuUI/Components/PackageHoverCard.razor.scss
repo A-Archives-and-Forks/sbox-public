@@ -228,12 +228,117 @@ PackageHoverCard
 		}
 	}
 
-	.footer
+	.jam
 	{
 		flex-direction: row;
 		align-items: center;
-		gap: 8px;
-		margin-top: 2px;
+		gap: 10px;
+		margin: 8px 0 6px 0;
+		padding: 10px 12px;
+		border-radius: 8px;
+		background: linear-gradient( 90deg, rgba( $front-trophy, 0.22 ), rgba( $front-trophy, 0.08 ) );
+		border: 1px solid rgba( $front-trophy, 0.45 );
+
+		.trophy
+		{
+			flex-shrink: 0;
+			font-size: 22px;
+			color: $front-trophy * 1.8;
+		}
+
+		.text
+		{
+			flex-grow: 1;
+			flex-direction: column;
+			gap: 2px;
+			overflow: hidden;
+
+			.title
+			{
+				font-family: $front-font;
+				font-size: 12px;
+				font-weight: 700;
+				color: $front-heading;
+			}
+
+			.hint
+			{
+				font-family: $front-font;
+				font-size: 10.5px;
+				font-weight: 500;
+				color: $front-trophy * 1.6;
+			}
+		}
+
+		.nominate
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			height: 32px;
+			padding: 0 14px 0 10px;
+			border-radius: 999px;
+			background-color: $front-trophy;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			icon
+			{
+				font-size: 18px;
+				color: #1a1204;
+			}
+
+			label
+			{
+				font-family: $front-font;
+				font-size: 12px;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.07em;
+				color: #1a1204;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: $front-trophy * 1.2;
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.on
+			{
+				background-color: rgba( $front-trophy, 0.15 );
+				border: 1px solid rgba( $front-trophy, 0.6 );
+
+				icon
+				{
+					color: $front-trophy * 1.6;
+				}
+
+				label
+				{
+					color: $front-trophy * 1.6;
+				}
+			}
+
+			&.locked
+			{
+				opacity: 0.45;
+				cursor: default;
+				pointer-events: none;
+			}
+
+			&.busy
+			{
+				opacity: 0.5;
+				pointer-events: none;
+			}
+		}
 	}
 
 	.tags
