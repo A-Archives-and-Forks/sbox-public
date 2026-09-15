@@ -26,7 +26,7 @@
 {
 	static PartyRoom Party => PartyRoom.Current;
 
-	public const int MAX_MEMBERS = 8;
+	public const int MAX_MEMBERS = 16;
 
 	public IEnumerable<Friend> Members => Party?.Members ?? Enumerable.Empty<Friend>();
 
