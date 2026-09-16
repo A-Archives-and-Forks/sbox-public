@@ -226,7 +226,7 @@ public partial class Texture
 		ThreadSafe.AssertIsMainThread();
 		var textureHandle = NativeGlue.Resources.GetTexture( filepath, Guid.Empty );
 		var t = FromNative( textureHandle );
-		t?.RegisterWeakResourceId( filepath, GetNativeGuid( textureHandle.GetBindingPtr() ) );
+		t?.RegisterWeakResourceId( filepath, textureHandle.GetGuid() );
 		return t;
 	}
 

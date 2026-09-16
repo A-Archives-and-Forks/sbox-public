@@ -31,15 +31,6 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 		g_pResourceSystem->GetCodeResourceManifestManager()->GetAllCodeManifests( *values );
 	}
 
-	inline Guid GetResourceGuid( void* binding )
-	{
-		ResourceHandle_t hResource = (ResourceHandle_t)binding;
-		if ( !hResource || hResource->m_Name == RESOURCE_NAME_HANDLE_INVALID || !hResource->m_Name->m_bHasGuid )
-			return {};
-
-		return hResource->m_Name->m_Guid;
-	}
-
 	bool ResolvePathToGuid( string path, out Guid guid );
 }
 

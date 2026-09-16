@@ -34,7 +34,7 @@ public sealed partial class Material : Resource
 		this.native = native;
 		this.Name = name;
 
-		RegisterWeakResourceId( name, GetNativeGuid( native.GetBindingPtr() ) );
+		RegisterWeakResourceId( name, native.GetGuid() );
 
 		CRenderAttributes attributes = this.native.GetRenderAttributes();
 		Attributes = new RenderAttributes( attributes );

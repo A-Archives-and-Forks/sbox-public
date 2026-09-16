@@ -41,7 +41,7 @@ public sealed partial class AnimationGraph : Resource
 		Name = name;
 
 		UpdateNameToIndexMapping();
-		RegisterWeakResourceId( Name, GetNativeGuid( native.GetBindingPtr() ) );
+		RegisterWeakResourceId( Name, native.GetGuid() );
 	}
 
 	internal override void OnReloaded()

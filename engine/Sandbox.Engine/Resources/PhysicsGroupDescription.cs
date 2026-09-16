@@ -23,7 +23,7 @@ public sealed class PhysicsGroupDescription : Resource
 		_native = native;
 		Name = native.GetResourceName();
 
-		RegisterWeakResourceId( Name, GetNativeGuid( native.GetBindingPtr() ) );
+		RegisterWeakResourceId( Name, native.GetGuid() );
 		Refresh();
 	}
 

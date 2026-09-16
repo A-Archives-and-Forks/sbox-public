@@ -103,19 +103,6 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	}
 
 	/// <summary>
-	/// Fetch the native GUID for a resource binding pointer, if any.
-	/// Returns null if the pointer is zero or the resource has no GUID.
-	/// </summary>
-	internal static Guid? GetNativeGuid( IntPtr bindingPtr )
-	{
-		if ( bindingPtr == IntPtr.Zero )
-			return null;
-
-		var guid = NativeEngine.g_pResourceSystem.GetResourceGuid( bindingPtr );
-		return guid != default ? guid : null;
-	}
-
-	/// <summary>
 	/// Accessor for loading native resources, not great, doesn't need to handle GameResource
 	/// </summary>
 	internal static Resource LoadNative( Type t, ResourceId id )
