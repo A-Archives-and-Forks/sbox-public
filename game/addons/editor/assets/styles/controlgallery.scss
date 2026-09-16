@@ -576,3 +576,17 @@ $wb-orange: #ff8800;
 .gallery-page .scene-control-demo { position: relative; }
 
 .gallery-page .scene-control-demo.orbital-demo { height: 640px; }
+
+// Scene demos occupy the available window height. Controls scroll without moving the camera view.
+.gallery-page.scene-gallery { flex-direction: row; min-width: 0; overflow: hidden; }
+.gallery-page.scene-gallery .scene-gallery-viewport { flex-grow: 1; flex-shrink: 1; flex-basis: 0; width: 0; height: 100%; position: relative; min-width: 0; min-height: 0; border: 0; border-radius: 0; }
+.gallery-page.scene-gallery .scene-gallery-controls { width: 280px; max-width: 45%; height: 100%; flex-shrink: 0; flex-direction: column; overflow: scroll; padding: 20px; border-left: 1px solid $line; }
+.gallery-page.scene-gallery .scene-gallery-controls > * { flex-shrink: 0; }
+.gallery-page.scene-gallery .scene-gallery-controls .case { margin-bottom: 20px; }
+.gallery-page.scene-gallery .scene-gallery-controls .demo-actions { flex-direction: column; align-items: stretch; }
+.gallery-page.scene-gallery .scene-gallery-controls .slidercontrol { width: 100%; min-width: 0; }
+.gallery-page.scene-gallery .scene-gallery-controls .reference-note { margin-bottom: 16px; }
+.style-light .gallery-page.scene-gallery .scene-gallery-controls { border-color: $l-line; }
+.gallery-page.scene-gallery .scene-camera-modes { width: 100%; flex-direction: row; margin-bottom: 10px; gap: 4px; }
+.gallery-page.scene-gallery .scene-camera-modes > .button { flex-grow: 1; flex-basis: 0; min-width: 0; padding: 8px 4px; font-size: 12px; text-transform: none; letter-spacing: 0; justify-content: center; }
+.gallery-page.scene-gallery .scene-gallery-controls .row.column > .checkbox { margin-right: 0; margin-bottom: 12px; }
