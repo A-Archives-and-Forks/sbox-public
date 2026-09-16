@@ -25,7 +25,7 @@ public sealed partial class Model : Resource
 		this.Name = name;
 		this.procedural = procedural;
 
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( Name, GetNativeGuid( native.GetBindingPtr() ) );
 	}
 
 	internal override void Destroy()

@@ -76,6 +76,8 @@ internal partial class StandaloneGameInstance : GameInstance
 
 		FileSystem.Mounted.Mount( new LocalFileSystem( Standalone.GamePath ) );
 		NativeEngine.FullFileSystem.AddProjectPath( Ident, Standalone.GamePath );
+
+		NativeEngine.g_pResourceSystem.InvalidateDatabase();
 		NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
 		EngineFileSystem.ProjectSettings = activePackage.ProjectSettings;
