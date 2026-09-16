@@ -29,6 +29,7 @@ public record GalleryPageInfo( string Title, string Icon, Func<Panel> Create, st
 		new( "Folder Select", "folder_open", () => new FolderSelectorPage(), "Controls/Input" ),
 		new( "Sliders", "tune", () => new SlidersPage(), "Controls/Input" ),
 		new( "Split Container", "vertical_split", () => new SplitContainerPage(), "Controls/Layout" ),
+		new( "Docking", "tab", () => new DockingPage(), "Controls/Layout" ),
 		new( "Tree View", "account_tree", () => new TreeViewPage(), "Controls/Layout" ),
 		new( "Images", "image", () => new DisplayPanelsPage(), "Controls/Display" ),
 		new( "Rect", "crop_landscape", () => new DrawPage( "Rectangle" ), "Painter Shapes" ),
