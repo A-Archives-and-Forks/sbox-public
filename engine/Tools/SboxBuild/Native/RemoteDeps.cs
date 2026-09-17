@@ -50,7 +50,7 @@ public static class RemoteDeps
 		new( "dav1d", "1.5.3", "thirdparty/dav1d" ) { Rebuild = 2 },
 		new( "libcurl", "8.12.1", "thirdparty/libcurl" ) { Rebuild = 6 },
 		new( "libopus", "v1.5.2", "thirdparty/libopus" ) { Rebuild = 2 },
-		new( "libvpx", "v1.16.0", "thirdparty/libvpx" ) { Rebuild = 2 },
+		new( "libvpx", "v1.16.0", "thirdparty/libvpx" ) { Rebuild = 3 },
 		new( "libwebp", "v1.5.0", "thirdparty/libwebp" ) { Rebuild = 2 },
 		new( "libwebm", "1.0.0.32", "thirdparty/libwebm" ) { Rebuild = 2 },
 		new( "libyuv", "4afb965", "thirdparty/libyuv" ) { Rebuild = 2 },
