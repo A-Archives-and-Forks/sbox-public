@@ -15,7 +15,8 @@ internal partial class StandaloneGameInstance : GameInstance
 	/// </summary>
 	public override async Task<bool> LoadAsync( PackageLoader.Enroller enroller, CancellationToken token )
 	{
-		var project = Project.AddFromFile( Standalone.GamePath );
+		// The project config was embedded in our executable at export time - assets/ holds only content
+		var project = Project.AddFromEmbeddedConfig( Standalone.ProjectConfigJson, Standalone.GamePath );
 		await Project.SyncWithPackageManager();
 		await Project.CompileAsync();
 		await project.Package.MountAsync();
