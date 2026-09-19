@@ -422,6 +422,7 @@ internal class PanelInput
 			StartHoldOffsetLocal = default;
 			StartHoldOffsetScreen = default;
 			MouseDownEvent = null;
+			RestoreActive();
 		}
 
 		public void Update( bool down, Panel hovered )
@@ -457,6 +458,7 @@ internal class PanelInput
 						Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) );
 						Active.OnButtonEvent( new ButtonEvent( MouseButton, false ) );
 						Active = null;
+						RestoreActive();
 					}
 				}
 
@@ -535,6 +537,16 @@ internal class PanelInput
 			Active.OnButtonEvent( new ButtonEvent( MouseButton, true ) );
 		}
 
+		void RestoreActive()
+		{
+			// Other buttons can still hold this panel or one of its descendants.
+			foreach ( var state in Input.MouseStates )
+			{
+				if ( state.Active is not null )
+					Panel.Switch( PseudoClass.Active, true, state.Active );
+			}
+		}
+
 		void OnReleased( Panel hovered )
 		{
 			if ( MouseButton == ButtonCode.MouseBack || MouseButton == ButtonCode.MouseForward )
@@ -592,6 +604,8 @@ internal class PanelInput
 
 			Active.OnButtonEvent( new ButtonEvent( MouseButton, false ) );
 			Active = null;
+
+			RestoreActive();
 		}
 	}
 
