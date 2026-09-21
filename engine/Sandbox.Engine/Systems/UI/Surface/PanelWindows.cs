@@ -86,7 +86,7 @@ internal static class PanelWindows
 
 		foreach ( var popup in all )
 		{
-			if ( !popup.IsPopup || !popup.IsOpen || popup.IgnoresInput ) continue;
+			if ( !popup.IsPopup || !popup.IsOpen || !popup.TakesKeyboardFocus ) continue;
 
 			var depth = Depth( popup );
 			if ( depth <= targetDepth ) continue;

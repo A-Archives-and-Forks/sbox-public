@@ -102,6 +102,11 @@ internal interface IPanelWindow
 	bool IgnoresInput { get; }
 
 	/// <summary>
+	/// Whether keyboard input is redirected to this popup. Mouse input is independent.
+	/// </summary>
+	bool TakesKeyboardFocus => !IgnoresInput;
+
+	/// <summary>
 	/// Let frames run inside a frame that's already running. An outgoing drag blocks in the
 	/// middle of one, and the frames the OS drag loop pulses are the only ones there are.
 	/// </summary>

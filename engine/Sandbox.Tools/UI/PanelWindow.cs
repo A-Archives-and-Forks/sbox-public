@@ -87,6 +87,11 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public virtual bool IgnoresInput => false;
 
 	/// <summary>
+	/// Whether a popup redirects typing from its parent window.
+	/// </summary>
+	internal virtual bool TakesKeyboardFocus => !IgnoresInput;
+
+	/// <summary>
 	/// The window this one hangs off, if it's a popup.
 	/// </summary>
 	internal virtual IPanelWindow ParentWindow => null;
@@ -110,6 +115,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	UISurface IPanelWindow.Surface => Surface;
 	bool IPanelWindow.IsPopup => IsPopup;
 	bool IPanelWindow.IgnoresInput => IgnoresInput;
+	bool IPanelWindow.TakesKeyboardFocus => TakesKeyboardFocus;
 	IPanelWindow IPanelWindow.Parent => ParentWindow;
 
 	/// <summary>

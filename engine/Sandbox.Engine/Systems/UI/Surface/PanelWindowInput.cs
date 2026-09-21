@@ -75,14 +75,20 @@ internal static partial class PanelWindowInput
 		// A popup window can go with them - a click on nothing in it, say
 		if ( !target.IsOpen ) return;
 
-		target.Surface.SetMouseButton( button, down, modifiers );
+		DispatchMouseButton( target.Surface, button, down, clicks, modifiers );
+	}
+
+	/// <summary>Deliver an accepted native mouse event, retaining the OS click count and event timing.</summary>
+	internal static void DispatchMouseButton( UISurface surface, ButtonCode button, bool down, int clicks, KeyboardModifiers modifiers )
+	{
+		surface.SetMouseButton( button, down, modifiers, clicks );
 
 		if ( down && clicks >= 2 && ToMouseButton( button ) is { } mouseButton )
 		{
 			// A third click arrives as its own event after the double, so a selection can grow
 			// word then line the way it does everywhere else
-			if ( clicks == 2 ) target.Surface.SetDoubleClick( mouseButton );
-			else if ( clicks == 3 ) target.Surface.SetTripleClick( mouseButton );
+			if ( clicks == 2 ) surface.SetDoubleClick( mouseButton );
+			else if ( clicks == 3 ) surface.SetTripleClick( mouseButton );
 		}
 	}
 

@@ -288,6 +288,8 @@ internal sealed class InputContext
 			}
 		}
 
+		int pressClickCount = 1;
+
 		// Slightly dodgy double/triple click handling
 		// lets hope no-one notices you can click with left and then right to double click
 		if ( button != ButtonCode.MouseWheelDown && button != ButtonCode.MouseWheelUp )
@@ -300,8 +302,9 @@ internal sealed class InputContext
 				clickCounter = 0;
 			}
 
-			if ( !pressed )
-				clickCounter++;
+			// Report the next click on press without advancing the release-driven gesture events.
+			if ( pressed ) pressClickCount = clickCounter + 1;
+			else clickCounter++;
 
 			timeSinceClick = 0;
 
@@ -336,7 +339,7 @@ internal sealed class InputContext
 				TargetUISystem.InputEventQueue.AddButtonTyped( button, modifiers );
 			}
 
-			TargetUISystem.Input.AddMouseButton( button, pressed, modifiers );
+			TargetUISystem.Input.AddMouseButton( button, pressed, modifiers, pressClickCount );
 		}
 	}
 

@@ -31,6 +31,8 @@ sealed class FakePanelWindow : IPanelWindow, IPopupHost
 	public bool IsPopup { get; init; }
 	public IPanelWindow Parent { get; init; }
 	public bool IgnoresInput { get; init; }
+	public bool KeepKeyboardInParent { get; init; }
+	public bool TakesKeyboardFocus => !IgnoresInput && !KeepKeyboardInParent;
 	public bool AllowNestedFrame { get; set; }
 	public bool IsFocused => false;
 	public bool AlwaysFullFrameRate { get; set; }

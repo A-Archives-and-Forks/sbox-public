@@ -28,6 +28,8 @@ internal sealed class PopupWindow : PanelWindow
 	/// </summary>
 	internal Popup HostedPopup { get; set; }
 
+	internal override bool TakesKeyboardFocus => !IgnoresInput && (HostedPopup?.TakesKeyboardFocus ?? true);
+
 	public override bool IsPopup => true;
 	internal override IPanelWindow ParentWindow => Parent;
 
@@ -54,9 +56,13 @@ internal sealed class PopupWindow : PanelWindow
 		// Start as big as the parent and let FitToContents take it down. Starting small would make
 		// the contents lay out against a width they're about to lose, and it's that first layout
 		// FitToContents measures.
-		_initialSize = parent.PixelsToWindow( parent.PixelSize );
+		// A submenu can be wider than its parent menu. Measure against the original window
+		// so a narrow suggestion list doesn't force its documentation to wrap prematurely.
+		var sizingWindow = parent;
+		while ( sizingWindow is PopupWindow popupParent ) sizingWindow = popupParent.Parent;
+		_initialSize = parent.PixelsToWindow( sizingWindow.PixelSize );
 
-		var surface = new UISurface { DpiScale = parent.Surface.DpiScale, Size = parent.PixelSize };
+		var surface = new UISurface { DpiScale = parent.Surface.DpiScale, Size = sizingWindow.PixelSize };
 
 		// The OS draws this window's edge - styles keyed on this drop the border and shadow they
 		// would draw floating in a root
@@ -96,7 +102,7 @@ internal sealed class PopupWindow : PanelWindow
 		// doesn't pull the caret out of a text entry. Not SDL_WINDOW_TOOLTIP: a swap chain on one
 		// of those never presents. A menu popup flagged not focusable is what SDL documents for
 		// this anyway.
-		if ( IgnoresInput )
+		if ( !TakesKeyboardFocus )
 			flags |= Sdl.WindowFlags.NotFocusable;
 
 		var window = Sdl.CreatePopupWindow( Parent.Handle, x, y, width, height, flags );
@@ -138,6 +144,30 @@ internal sealed class PopupWindow : PanelWindow
 	private protected override void OnFirstShow()
 	{
 		Sdl.SetWindowPosition( Handle, (int)_position.x, (int)_position.y );
+		_anchorPosition = null;
+		UpdateAnchor();
+	}
+
+	Vector2? _anchorPosition;
+
+	/// <summary>
+	/// Place caret popups using their measured size, within the monitor's work area.
+	/// Coordinates passed to SDL are relative to the parent window.
+	/// </summary>
+	internal void UpdateAnchor()
+	{
+		if ( Handle == IntPtr.Zero || HostedPopup?.AnchorRect is not { } anchor ) return;
+		var bounds = Parent.DisplayWorkArea;
+		// SDL reports popup positions relative to their parent window.
+		for ( var ancestor = Parent; ancestor is not null; ancestor = (ancestor as PopupWindow)?.Parent )
+			bounds.Position -= ancestor.Position;
+		var source = new Rect( Parent.PixelsToWindow( anchor.Position ), Parent.PixelsToWindow( anchor.Size ) );
+		var position = Sandbox.UI.Popup.AnchorPosition( source, PixelsToWindow( PixelSize ), bounds,
+			HostedPopup.Position, Parent.PixelsToWindow( new Vector2( HostedPopup.PopupSourceOffset * HostedPopup.PopupSource.ScaleToScreen ) ).x );
+		position = new Vector2( (int)position.x, (int)position.y );
+		if ( _anchorPosition == position ) return;
+		_anchorPosition = position;
+		Sdl.SetWindowPosition( Handle, (int)position.x, (int)position.y );
 	}
 
 	/// <summary>
