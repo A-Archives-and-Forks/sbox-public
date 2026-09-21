@@ -154,6 +154,7 @@ class LauncherWindow : Panel
 		LinkItem( sidebar, "Documentation", "menu_book", "https://sbox.game/dev/doc/" );
 		LinkItem( sidebar, Global.BackendTitle, "public", Global.BackendUrl );
 		LinkItem( sidebar, "API Reference", "data_object", $"{Global.BackendUrl}/api" );
+		NavItem( sidebar, "Panel Gallery", "widgets", LaunchPanelGallery );
 
 		var gameFolder = Environment.CurrentDirectory;
 		LinkItem( sidebar, "Engine Folder", "folder", gameFolder );
@@ -851,6 +852,21 @@ class LauncherWindow : Panel
 			return;
 
 		LaunchProject( project );
+	}
+
+	/// <summary>
+	/// Open the standalone panel controls and layout gallery.
+	/// </summary>
+	void LaunchPanelGallery()
+	{
+		Process.Start( new ProcessStartInfo( NetCore.GetExecutablePath( "bin/managed/panelgallery" ) )
+		{
+			UseShellExecute = OperatingSystem.IsWindows(),
+			CreateNoWindow = true,
+			WorkingDirectory = Environment.CurrentDirectory
+		} );
+
+		if ( LauncherPreferences.CloseOnLaunch ) Window.Dispose();
 	}
 
 	/// <summary>

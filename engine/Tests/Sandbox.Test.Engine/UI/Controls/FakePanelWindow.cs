@@ -1,3 +1,4 @@
+using NativeEngine;
 using System;
 using Sandbox.UI;
 
@@ -15,14 +16,16 @@ sealed class FakePanelWindow : IPanelWindow, IPopupHost
 	public UISurface Surface { get; init; }
 	public bool IsOpen => !CloseRequested;
 	public bool MouseInside { get; set; }
-	public void SetCursorPosition( Vector2 position ) { }
+	public Vector2 CursorPosition { get; private set; }
+	public void SetCursorPosition( Vector2 position ) => CursorPosition = position;
 	public Vector2 ToSurface( Vector2 windowPosition ) => windowPosition;
-	public bool Frame( bool interactiveResize ) => false;
-	public IPanelWindow.WindowHitTest HitTest( Vector2 position ) => IPanelWindow.WindowHitTest.Normal;
+	public bool Frame() => false;
+	public Sdl.HitTestResult HitTest( Vector2 position ) => Sdl.HitTestResult.Normal;
 	public void RequestClose() => CloseRequested = true;
 	public void Moved() { }
 	public void Resized() { }
-	public void StateChanged( int state ) { }
+	public int WindowState { get; private set; }
+	public void StateChanged( int state ) => WindowState = state;
 	public void FocusChanged( bool focused ) { }
 	public void DisplayChanged() { }
 	public bool IsPopup { get; init; }

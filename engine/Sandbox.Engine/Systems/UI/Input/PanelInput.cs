@@ -87,8 +87,8 @@ internal class PanelInput
 		// When we're ticking inputs, let's emulate the mouse if we're using a gamepad
 		if ( Input.EnableVirtualCursor && Input.CurrentController is { } controller )
 		{
-			var moveX = controller.GetAxis( NativeEngine.GameControllerAxis.LeftX );
-			var moveY = controller.GetAxis( NativeEngine.GameControllerAxis.LeftY );
+			var moveX = controller.GetAxis( Sandbox.GameControllerAxis.LeftX );
+			var moveY = controller.GetAxis( Sandbox.GameControllerAxis.LeftY );
 
 			if ( MathF.Abs( moveX ) > 0 || MathF.Abs( moveY ) > 0 )
 			{

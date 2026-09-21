@@ -42,6 +42,7 @@ internal static class PanelWindows
 
 	internal static void Unregister( IPanelWindow window )
 	{
+		PanelWindowInput.OnWindowClosed( window );
 		all.Remove( window );
 		DragSession?.OnWindowClosing( window );
 	}
@@ -221,7 +222,7 @@ internal static class PanelWindows
 
 			try
 			{
-				presented |= window.Frame( interactiveResize: false );
+				presented |= window.Frame();
 			}
 			catch ( Exception e )
 			{

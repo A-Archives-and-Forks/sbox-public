@@ -223,7 +223,7 @@ internal sealed class InputContext
 
 		TargetUISystem.InputEventQueue.AddButtonEvent( keyButtonCode, false, modifiers );
 
-		var name = InputSystem.CodeToString( scanButtonCode );
+		var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 		if ( !string.IsNullOrWhiteSpace( name ) )
 		{
 			OnGameButton?.Invoke( scanButtonCode, name, false );
@@ -234,7 +234,7 @@ internal sealed class InputContext
 	{
 		if ( TrappingKeys )
 		{
-			var name = InputSystem.CodeToString( scanButtonCode );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				TrappedKeys.Add( name );
@@ -281,7 +281,7 @@ internal sealed class InputContext
 
 		if ( MouseState == InputState.Game || gameToo || !pressed )
 		{
-			var name = InputSystem.CodeToString( button );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( button );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				OnGameButton?.Invoke( button, name, pressed );
@@ -367,7 +367,7 @@ internal sealed class InputContext
 		// but don't allow new presses
 		if ( KeyboardState == InputState.Game || !down )
 		{
-			var name = InputSystem.CodeToString( scanButtonCode );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				OnGameButton?.Invoke( scanButtonCode, name, down );

@@ -158,11 +158,11 @@ class InputEventQueue
 
 		if ( button == ButtonCode.KEY_V )
 		{
-			if ( NativeEngine.EngineGlobal.SDL_HasClipboardText() )
+			if ( NativeEngine.Sdl.HasClipboardText() )
 			{
-				var ptr = NativeEngine.EngineGlobal.SDL_GetClipboardText();
+				var ptr = NativeEngine.Sdl.GetClipboardText();
 				var text = System.Runtime.InteropServices.Marshal.PtrToStringUTF8( ptr );
-				NativeEngine.EngineGlobal.SDL_free( ptr );
+				NativeEngine.Sdl.Free( ptr );
 
 				if ( !string.IsNullOrEmpty( text ) )
 				{
