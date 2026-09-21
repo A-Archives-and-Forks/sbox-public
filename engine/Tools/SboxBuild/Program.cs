@@ -41,6 +41,9 @@ internal class Program
 		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
 		AddShaderSpecializationExperimentCommand( rootCommand );
+		var complexSpecialization = new Command( "test-complex-specialization", "Compare full complex.shader macro/specialized compiles and rendered bent-normal output (requires built engine/tests)" );
+		complexSpecialization.SetHandler( () => Environment.ExitCode = (int)new TestComplexSpecialization().Run() );
+		rootCommand.Add( complexSpecialization );
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
