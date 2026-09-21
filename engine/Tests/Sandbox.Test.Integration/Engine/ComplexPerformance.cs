@@ -24,7 +24,9 @@ public class ComplexPerformanceTest
 		bool textureRendering = Environment.GetEnvironmentVariable( "SBOX_COMPLEX_PERF_TEXTURE" ) == "1";
 		int rotation = int.Parse( Environment.GetEnvironmentVariable( "SBOX_COMPLEX_PERF_ROTATION" ) ?? "0" );
 		int grid = int.Parse( Environment.GetEnvironmentVariable( "SBOX_COMPLEX_PERF_GRID" ) ?? "6" );
-		const string shaderPath = "shaders/complex.shader";
+		string shaderName = Environment.GetEnvironmentVariable( "SBOX_SHADER_PERF_NAME" ) ?? "complex";
+		Assert.IsTrue( shaderName is "complex" or "skin" or "generic" );
+		string shaderPath = $"shaders/{shaderName}.shader";
 		var records = new List<object>();
 		var materials = new List<Material>();
 		using var process = Process.GetCurrentProcess();
@@ -35,6 +37,8 @@ public class ComplexPerformanceTest
 		using var detail = Texture.Create( 1, 1 ).WithData( new byte[] { 80, 160, 210, 255 } ).Finish();
 		using var detailNormal = Texture.Create( 1, 1 ).WithData( new byte[] { 180, 100, 0, 255 } ).Finish();
 		using var color = Texture.Create( 1, 1 ).WithData( new byte[] { 120, 160, 180, 255 } ).Finish();
+		using var masks = Texture.Create( 1, 1 ).WithData( new byte[] { 0, 255, 0, 255 } ).Finish();
+		using var legacyNormal = Texture.Create( 1, 1 ).WithData( new byte[] { 128, 128, 255, 128 } ).Finish();
 		using var bitmap = new Bitmap( resolution, resolution );
 		using var target = Texture.CreateRenderTarget().WithSize( resolution, resolution ).Create();
 		var previousProfilerMode = CSceneSystem.GetGPUProfilerMode();
@@ -49,7 +53,7 @@ public class ComplexPerformanceTest
 			{
 				var shader = new Shader();
 				var loadTimer = Stopwatch.StartNew();
-				Assert.IsTrue( shader.LoadCompiledForRecompile( Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "core/shaders/complex.shader" ) ) );
+				Assert.IsTrue( shader.LoadCompiledForRecompile( Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "core", shaderPath ) ) );
 				metadataLoads.Add( loadTimer.Elapsed.TotalMilliseconds );
 				shader.Destroy();
 				EngineLoop.RunAsyncTasks();
@@ -116,6 +120,14 @@ public class ComplexPerformanceTest
 				("two-sided", "F_RENDER_BACKFACES=1"),
 				("bent-cloth-detail", "F_USE_BENT_NORMALS=1,F_CLOTH_SHADING=1,F_DETAIL_TEXTURE=4")
 			};
+			if ( shaderName == "skin" )
+				cases = [("plain", ""), ("bent", "F_USE_BENT_NORMALS=1"), ("age", "F_AGE_TEXTURE=1"),
+					("bent-age", "F_USE_BENT_NORMALS=1,F_AGE_TEXTURE=1"),
+					("bent-debug-off", ""), ("bent-debug-on", "F_USE_BENT_NORMALS=1")];
+			else if ( shaderName == "generic" )
+				cases = [("plain", ""), ("two-sided", "F_RENDER_BACKFACES=1"),
+					("specular", "F_SPECULAR=1"), ("specular-two-sided", "F_SPECULAR=1,F_RENDER_BACKFACES=1"),
+					("interior-one-sided", ""), ("interior-two-sided", "F_RENDER_BACKFACES=1")];
 			var featureNames = cases.SelectMany( c => c.Features.Split( ',', StringSplitOptions.RemoveEmptyEntries ) ).Select( x => x.Split( '=' )[0] ).Distinct().ToArray();
 			cases = cases.Skip( rotation % cases.Length ).Concat( cases.Take( rotation % cases.Length ) ).ToArray();
 			// Stabilize the GPU and common rendering paths before the first feature case.
@@ -124,6 +136,10 @@ public class ComplexPerformanceTest
 			var filter = Environment.GetEnvironmentVariable( "SBOX_COMPLEX_PERF_CASES" )?.Split( ',' );
 			foreach ( var testCase in cases.Where( c => filter is null || filter.Contains( c.Name ) ) )
 			{
+				bool interior = testCase.Name.StartsWith( "interior-", StringComparison.Ordinal );
+				camera.WorldPosition = interior ? new Vector3( 0, -(grid - 1) * 32, -(grid - 1) * 32 ) : new Vector3( -500 * grid / 6.0f, 0, 0 );
+				// Isolate culling/normal flipping for the interior checks from lighting.
+				camera.DebugMode = (SceneCameraDebugMode)(interior ? 21 : testCase.Name.StartsWith( "bent-debug", StringComparison.Ordinal ) ? 25 : 0);
 				timer.Restart();
 				foreach ( var name in featureNames ) material.SetFeature( name, 0 );
 				foreach ( var entry in testCase.Features.Split( ',', StringSplitOptions.RemoveEmptyEntries ) )
@@ -141,7 +157,7 @@ public class ComplexPerformanceTest
 				using var textureBitmap = textureRendering ? target.GetBitmap() : null;
 				var captureBitmap = textureBitmap ?? bitmap;
 				var pixels = captureBitmap.GetPixels();
-				Assert.IsTrue( pixels.Count( p => p.g > 0.03f || p.b > 0.03f ) > resolution * resolution / 10, "Missing object or error shader." );
+				Assert.IsTrue( pixels.Count( p => p.g > 0.03f || p.b > 0.03f ) > resolution * resolution / 10 || testCase.Name == "interior-one-sided", "Missing object or error shader." );
 				File.WriteAllBytes( output + "." + testCase.Name + ".png", captureBitmap.ToPng() );
 				// Keep readback/PNG work outside the measured sample window.
 				for ( int i = 0; i < 30; ++i ) Render();
@@ -168,7 +184,7 @@ public class ComplexPerformanceTest
 
 			// Retain all instances; repeat the same valid feature workload to separate
 			// variant first-use from already-loaded material construction.
-			for ( int pass = 0; pass < 2; ++pass )
+			for ( int pass = 0; shaderName == "complex" && pass < 2; ++pass )
 			{
 				process.Refresh();
 				long before = process.PrivateMemorySize64;
@@ -189,6 +205,7 @@ public class ComplexPerformanceTest
 				records.Add( new { kind = "materials", pass, count = 128, materialBatchMs, privateDeltaBytes = process.PrivateMemorySize64 - before } );
 				Save();
 			}
+			Save();
 			Console.WriteLine( g_pRenderDevice.GetGpuStatsSummary() );
 
 			void Bind( Material m )
@@ -210,6 +227,21 @@ public class ComplexPerformanceTest
 				m.Set( "g_vDetailTexCoordScale", Vector2.One );
 				m.Set( "g_flNormalMapScaleFactor", 0.2f );
 				m.Set( "g_flLightRangeForSelfShadowNormals", 0.707f );
+				if ( shaderName == "skin" )
+				{
+					m.Set( "g_tCombinedMasks", masks );
+					m.Set( "g_tTintLookup", Texture.White );
+					m.Set( "g_tAgeNormal", detailNormal );
+					m.Set( "g_tAgeColor", detail );
+					m.Set( "g_bOverrideTinting", true );
+					m.Set( "g_flSkinAge", 0.75f );
+				}
+				if ( shaderName == "generic" )
+				{
+					m.Set( "g_tNormal", legacyNormal );
+					m.Set( "g_tRoughness", normal );
+					m.Set( "g_tMetalnessReflectanceFresnel", masks );
+				}
 			}
 			void Render()
 			{
@@ -234,6 +266,7 @@ public class ComplexPerformanceTest
 			}
 			void Save() => File.WriteAllText( output, JsonSerializer.Serialize( new
 			{
+				shaderName,
 				resolution,
 				samples,
 				warmup,
