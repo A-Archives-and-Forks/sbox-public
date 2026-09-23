@@ -28,7 +28,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// <summary>
 	/// How far away from the camera to focus in world units.
 	/// </summary>
-	[Range( 1.0f, 1000 )]
+	[Range( 1.0f, 16000 )]
 	[Property, Group( "Focus" ), Icon( "horizontal_distribute" )]
 	public float FocalDistance { get; set; } = 200.0f;
 
@@ -37,6 +37,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// Larger values give a softer, more gradual falloff. Defaults to the camera far plane.
 	/// </summary>
 	[Range( 1.0f, 15000.0f )]
+	[Editor( "depth-of-field-focus-range" )]
 	[Property, Group( "Focus" ), Icon( "blur_linear" )]
 	public float FocusRange { get; set; } = 15000f;
 
@@ -138,7 +139,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		command.Attributes.Set( "Dimensions", Vertical.Size );
 		command.Attributes.Set( "Radius", radius );
 		command.Attributes.Set( "StepScale", stepScale );
-		command.Attributes.Set( "FocusPlane", focalDistance.Clamp( 0, 5000 ) );
+		command.Attributes.Set( "FocusPlane", focalDistance.Clamp( 0, 16000 ) );
 		command.Attributes.Set( "FocusRange", focusRange );
 		command.Attributes.Set( "EnableBack", BackBlur );
 		command.Attributes.Set( "EnableFront", FrontBlur );
