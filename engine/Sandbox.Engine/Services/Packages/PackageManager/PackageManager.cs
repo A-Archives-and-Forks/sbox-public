@@ -80,12 +80,30 @@ internal static partial class PackageManager
 		}
 
 		//
-		// If this package has dependencies then download them first
+		// Dependencies install one at a time and before this package, so they mount in a fixed order.
+		// Their files and ours all download at once in the background, and each install finds them cached.
 		//
-		await InstallDependencies( package, options );
+		using var prefetchCancel = CancellationTokenSource.CreateLinkedTokenSource( options.CancellationToken );
+		var prefetch = options.IsDependency || options.SkipAssetDownload ? Task.CompletedTask : PrefetchAsync( package, options.AllowLocalPackages, prefetchCancel.Token );
 
-		var ap = await ActivePackage.Create( package, options.CancellationToken, options );
-		options.CancellationToken.ThrowIfCancellationRequested();
+		ActivePackage ap;
+
+		try
+		{
+			//
+			// If this package has dependencies then download them first
+			//
+			await InstallDependencies( package, options with { IsDependency = true } );
+
+			ap = await ActivePackage.Create( package, options.CancellationToken, options );
+			options.CancellationToken.ThrowIfCancellationRequested();
+		}
+		finally
+		{
+			// Everything it would fetch is installed by now, or we failed and don't want it
+			prefetchCancel.Cancel();
+			await prefetch;
+		}
 
 		//
 		// Prefer precompiled dlls (backend-compiled, downloaded from the manifest). If a
@@ -166,6 +184,43 @@ internal static partial class PackageManager
 		}
 
 		options.CancellationToken.ThrowIfCancellationRequested();
+	}
+
+	/// <summary>
+	/// Download the files of a package and everything it depends on into the asset cache, all at once.
+	/// Does nothing for a package without dependencies, its own install is downloading the same files.
+	/// Never throws, the installs report any failure.
+	/// </summary>
+	private static async Task PrefetchAsync( Package root, bool allowLocalPackages, CancellationToken token )
+	{
+		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		bool Unseen( string ident ) { lock ( seen ) return seen.Add( ident ); }
+
+		async Task Prefetch( Package package )
+		{
+			var dependencies = package.EnumerateInstallDependencies().Where( Unseen ).ToArray();
+
+			var fetches = dependencies.Select( async ident =>
+			{
+				if ( Find( ident, allowLocalPackages ) is not null ) return;
+				if ( await FetchPackageAsync( ident, allowLocalPackages ) is Package dependency )
+					await Prefetch( dependency );
+			} );
+
+			var own = package.IsRemote ? package.Prefetch( token ) : Task.CompletedTask;
+			await Task.WhenAll( fetches.Append( own ) );
+		}
+
+		try
+		{
+			if ( !root.EnumerateInstallDependencies().Any() ) return;
+			await Prefetch( root );
+		}
+		catch ( OperationCanceledException ) { }
+		catch ( Exception e )
+		{
+			log.Trace( $"Prefetching {root.FullIdent} failed: {e.Message}" );
+		}
 	}
 
 	/// <summary>

@@ -36,7 +36,22 @@ public partial class Package
 	/// <summary>
 	/// Download a package to a temporary location and return a filesystem with its contents
 	/// </summary>
-	internal async Task<PackageFileSystem> Download( CancellationToken token = default, PackageLoadOptions options = default )
+	internal Task<PackageFileSystem> Download( CancellationToken token = default, PackageLoadOptions options = default )
+	{
+		return Download( token, options, true );
+	}
+
+	/// <summary>
+	/// Download this package's files into the asset cache without mounting anything, so a later
+	/// <see cref="Download(CancellationToken, PackageLoadOptions)"/> finds them all cached.
+	/// Downloads of the same file share the per-file lock, so this can run alongside one.
+	/// </summary>
+	internal async Task Prefetch( CancellationToken token )
+	{
+		await Download( token, default, false );
+	}
+
+	async Task<PackageFileSystem> Download( CancellationToken token, PackageLoadOptions options, bool mount )
 	{
 		// TODO - if we have a download in progress then return, or wait for it (?)
 		// The filesystem is technically immutable other than disposing and adding more shit to it
@@ -64,13 +79,18 @@ public partial class Package
 		}
 
 		var downloadQueue = new ConcurrentBag<FileDownloadEntry>();
-		var fs = new PackageFileSystem();
+		var fs = mount ? new PackageFileSystem() : null;
 
 		var loopSw = Stopwatch.StartNew();
 		foreach ( var e in entries )
 		{
 			TryAddToDownloadQueue( e, fs, downloadQueue, token );
-			if ( loopSw.ElapsedMilliseconds > 8 ) { global::Sandbox.LoadingScreen.Subtitle = System.IO.Path.GetFileName( e.Path ); await Task.Yield(); loopSw.Restart(); }
+			if ( loopSw.ElapsedMilliseconds > 8 )
+			{
+				if ( mount ) global::Sandbox.LoadingScreen.Subtitle = System.IO.Path.GetFileName( e.Path );
+				await Task.Yield();
+				loopSw.Restart();
+			}
 		}
 
 		// nothing to download
@@ -99,6 +119,7 @@ public partial class Package
 		metric.SetValue( "files", downloadQueue.Count );
 		metric.SetValue( "size_sum", totalSize );
 		metric.SetValue( "size_avg", downloadQueue.Average( x => x.File.Size ) );
+		metric.SetValue( "prefetch", !mount );
 
 		Utility.DataProgress.Callback progressCallback = ( p ) => { Interlocked.Add( ref downloadedSize, p.DeltaBytes ); };
 
@@ -130,7 +151,7 @@ public partial class Package
 				try
 				{
 					await DownloadFileAsync( e, progressCallback, downloadCancel.Token );
-					downloaded.Enqueue( e );
+					if ( fs is not null ) downloaded.Enqueue( e );
 				}
 				// Only swallow if we're the ones who cancelled, a timeout mustn't pass as success
 				catch ( OperationCanceledException ) when ( downloadCancel.IsCancellationRequested ) { }
@@ -149,7 +170,7 @@ public partial class Package
 			if ( hasError || token.IsCancellationRequested )
 				break;
 
-			MountDownloaded();
+			if ( fs is not null ) MountDownloaded();
 
 			if ( downloadedSize != oldSize )
 			{
@@ -177,13 +198,13 @@ public partial class Package
 		if ( hasError )
 			return null;
 
-		MountDownloaded();
+		if ( fs is not null ) MountDownloaded();
 
 		progress.Title = $"Download '{Title}' Complete";
 		progress.Fraction = 1;
 		options.Loading?.LoadingProgress( progress );
 		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
-		global::Sandbox.LoadingScreen.Subtitle = "";
+		if ( mount ) global::Sandbox.LoadingScreen.Subtitle = "";
 
 		Log.Trace( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
 
@@ -208,7 +229,7 @@ public partial class Package
 
 		var crc = Convert.ToUInt64( entry.Crc, 16 );
 
-		if ( AssetDownloadCache.TryMount( fs.Redirect, entry.Path, crc ) )
+		if ( fs is null ? AssetDownloadCache.IsCached( entry.Path, crc ) : AssetDownloadCache.TryMount( fs.Redirect, entry.Path, crc ) )
 			return;
 
 		// Web.DownloadFile makes the directory off the main thread. A new one can take a millisecond with a virus scanner watching.
