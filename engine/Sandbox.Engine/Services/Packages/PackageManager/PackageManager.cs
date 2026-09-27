@@ -84,7 +84,9 @@ internal static partial class PackageManager
 		// Their files and ours all download at once in the background, and each install finds them cached.
 		//
 		using var prefetchCancel = CancellationTokenSource.CreateLinkedTokenSource( options.CancellationToken );
-		var prefetch = options.IsDependency || options.SkipAssetDownload ? Task.CompletedTask : PrefetchAsync( package, options.AllowLocalPackages, prefetchCancel.Token );
+		var prefetch = options.IsDependency || options.SkipAssetDownload || !package.EnumerateInstallDependencies().Any()
+			? Task.CompletedTask
+			: PrefetchAsync( package, true, options.AllowLocalPackages, prefetchCancel.Token );
 
 		ActivePackage ap;
 
@@ -187,16 +189,16 @@ internal static partial class PackageManager
 	}
 
 	/// <summary>
-	/// Download the files of a package and everything it depends on into the asset cache, all at once.
-	/// Does nothing for a package without dependencies, its own install is downloading the same files.
-	/// Never throws, the installs report any failure.
+	/// Download the files of everything a package depends on into the asset cache, all at once, and the
+	/// package's own files with <paramref name="includeRoot"/>. Nothing is mounted. Never throws, the
+	/// installs report any failure.
 	/// </summary>
-	private static async Task PrefetchAsync( Package root, bool allowLocalPackages, CancellationToken token )
+	internal static async Task PrefetchAsync( Package root, bool includeRoot, bool allowLocalPackages, CancellationToken token )
 	{
 		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		bool Unseen( string ident ) { lock ( seen ) return seen.Add( ident ); }
 
-		async Task Prefetch( Package package )
+		async Task Prefetch( Package package, bool own )
 		{
 			var dependencies = package.EnumerateInstallDependencies().Where( Unseen ).ToArray();
 
@@ -204,17 +206,16 @@ internal static partial class PackageManager
 			{
 				if ( Find( ident, allowLocalPackages ) is not null ) return;
 				if ( await FetchPackageAsync( ident, allowLocalPackages ) is Package dependency )
-					await Prefetch( dependency );
+					await Prefetch( dependency, true );
 			} );
 
-			var own = package.IsRemote ? package.Prefetch( token ) : Task.CompletedTask;
-			await Task.WhenAll( fetches.Append( own ) );
+			var files = own && package.IsRemote ? package.Prefetch( token ) : Task.CompletedTask;
+			await Task.WhenAll( fetches.Append( files ) );
 		}
 
 		try
 		{
-			if ( !root.EnumerateInstallDependencies().Any() ) return;
-			await Prefetch( root );
+			await Prefetch( root, includeRoot );
 		}
 		catch ( OperationCanceledException ) { }
 		catch ( Exception e )

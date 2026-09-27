@@ -126,8 +126,21 @@ public partial class PartyRoom
 		token.ThrowIfCancellationRequested();
 		if ( package is null ) throw new InvalidOperationException( $"Package '{packageIdent}' was not found." );
 		using var loading = new PreloadProgress( progress );
-		var files = await package.Download( token, new PackageLoadOptions { Loading = loading } );
-		if ( files is null ) throw new InvalidOperationException( $"Could not download '{package.Title}'." );
+
+		// Into the cache only, joining mounts it. Dependencies download alongside, the progress is the game's.
+		var dependencies = PackageManager.PrefetchAsync( package, false, false, token );
+		bool downloaded;
+
+		try
+		{
+			downloaded = await package.Prefetch( token, new PackageLoadOptions { Loading = loading } );
+		}
+		finally
+		{
+			await dependencies;
+		}
+
+		if ( !downloaded ) throw new InvalidOperationException( $"Could not download '{package.Title}'." );
 	}
 
 	sealed class PreloadProgress( Action<LoadingProgress?> report ) : ILoadingInterface
