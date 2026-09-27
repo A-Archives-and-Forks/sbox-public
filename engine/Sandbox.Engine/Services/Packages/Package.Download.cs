@@ -110,16 +110,27 @@ public partial class Package
 		// Stop the other workers when one fails, they'd keep writing to a filesystem we've thrown away
 		using var downloadCancel = CancellationTokenSource.CreateLinkedTokenSource( token );
 
+		// Downloaded files wait here for the main thread to mount them
+		var downloaded = new ConcurrentQueue<FileDownloadEntry>();
+
+		void MountDownloaded()
+		{
+			while ( downloaded.TryDequeue( out var e ) )
+				AssetDownloadCache.TryMount( fs.Redirect, e.File.Path, e.Crc );
+		}
+
 		//
-		// Download any pending files
+		// Download any pending files. The transfers run on the thread pool: on the main thread every read
+		// waits for the next frame's queue drain, which caps throughput by frame rate and stalls the frame.
 		//
-		var task = downloadQueue
+		var task = Task.Run( () => downloadQueue
 			.OrderBy( x => Guid.NewGuid() )
 			.ForEachTaskAsync( async ( e ) =>
 			{
 				try
 				{
-					await DownloadFileAsync( e, fs, progressCallback, downloadCancel.Token );
+					await DownloadFileAsync( e, progressCallback, downloadCancel.Token );
+					downloaded.Enqueue( e );
 				}
 				// Only swallow if we're the ones who cancelled, a timeout mustn't pass as success
 				catch ( OperationCanceledException ) when ( downloadCancel.IsCancellationRequested ) { }
@@ -130,13 +141,15 @@ public partial class Package
 					downloadCancel.Cancel();
 				}
 
-			}, workers );
+			}, workers ) );
 
 		long oldSize = 0;
 		while ( !task.IsCompleted )
 		{
 			if ( hasError || token.IsCancellationRequested )
 				break;
+
+			MountDownloaded();
 
 			if ( downloadedSize != oldSize )
 			{
@@ -163,6 +176,8 @@ public partial class Package
 
 		if ( hasError )
 			return null;
+
+		MountDownloaded();
 
 		progress.Title = $"Download '{Title}' Complete";
 		progress.Fraction = 1;
@@ -196,12 +211,10 @@ public partial class Package
 		if ( AssetDownloadCache.TryMount( fs.Redirect, entry.Path, crc ) )
 			return;
 
+		// Web.DownloadFile makes the directory off the main thread. A new one can take a millisecond with a virus scanner watching.
 		var targetFile = AssetDownloadCache.GetAbsolutePath( entry.Path, crc );
-		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( targetFile ) );
 
 		token.ThrowIfCancellationRequested();
-
-		var fileInfo = new System.IO.FileInfo( targetFile );
 
 		var download = new FileDownloadEntry
 		{
@@ -238,9 +251,10 @@ public partial class Package
 	static ConcurrentDictionary<string, SemaphoreSlim> activeDownloadLocks = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// Download an individual file
+	/// Download an individual file into the cache. Runs off the main thread, the caller mounts it.
+	/// Returns once the file is on disk, including when another download of it got there first.
 	/// </summary>
-	private async Task DownloadFileAsync( FileDownloadEntry entry, PackageFileSystem fs, Sandbox.Utility.DataProgress.Callback progress, CancellationToken token )
+	private async Task DownloadFileAsync( FileDownloadEntry entry, Sandbox.Utility.DataProgress.Callback progress, CancellationToken token )
 	{
 		var semaphore = activeDownloadLocks.GetOrAdd( entry.AbsolutePath, key => new SemaphoreSlim( 1 ) );
 
@@ -253,6 +267,7 @@ public partial class Package
 
 			if ( entry.File.Size == 0 )
 			{
+				System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( entry.AbsolutePath ) );
 				await System.IO.File.WriteAllTextAsync( entry.AbsolutePath, "", token );
 			}
 			else
@@ -271,8 +286,6 @@ public partial class Package
 				// we should probably throw exception and abandon here?
 				Log.Warning( $"Downloaded file {entry.AbsolutePath} - checkfile failed" );
 			}
-
-			AssetDownloadCache.TryMount( fs.Redirect, entry.File.Path, entry.Crc );
 		}
 		finally
 		{
