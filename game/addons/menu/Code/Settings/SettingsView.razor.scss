@@ -161,9 +161,6 @@ SettingsView
 		flex-shrink: 1;
 		// width 0 + grow: take the leftover space, not the content's.
 		width: 0;
-		// Ends above the party deck, which docks into the gap left under this one card.
-		// 52 pill + 16 gutter. Literal: the parser silently drops a sum.
-		margin-bottom: 68px;
 	}
 
 	.head

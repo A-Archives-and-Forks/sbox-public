@@ -205,6 +205,19 @@ public partial class MenuSystem : IMenuSystem
 		MainMenu.Instance?.Navigator?.Navigate( url );
 	}
 
+	/// <summary>Start a party with just you in it, without having to invite someone first.</summary>
+	[MenuConCmd( "party_create" )]
+	public static async Task CreateParty()
+	{
+		if ( PartyRoom.Current is not null )
+		{
+			Log.Info( "Already in a party" );
+			return;
+		}
+
+		await PartyDeck.EnsureLobbyExists();
+	}
+
 	[MenuConCmd( "menu_packageclosed" )]
 	public static async Task PackageClosedTest( string ident )
 	{
