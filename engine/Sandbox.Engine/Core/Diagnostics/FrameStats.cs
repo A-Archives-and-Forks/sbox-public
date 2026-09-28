@@ -18,6 +18,8 @@ public struct FrameStats
 		AggregateObjectDraws = stats.m_nAggregateSceneObjectPrimDraws;
 		AggregateObjectsFullyCulled = stats.m_nAggregateSceneObjectsFullyCulled;
 		AggregateObjectDrawCalls = stats.m_nAggregateSceneObjectDrawCalls;
+		AggregateIndirectSubmits = stats.m_nAggregateSceneObjectIndirectSubmits;
+		AggregateIndirectFragments = stats.m_nAggregateSceneObjectIndirectFragments;
 		RenderBatchDraws = stats.m_nRenderBatchDraws;
 		TrianglesRendered = stats.m_nTrianglesRendered;
 		DrawCalls = stats.m_nDrawCalls;
@@ -82,6 +84,12 @@ public struct FrameStats
 
 	/// <summary>Native draw calls issued from aggregate scene objects.</summary>
 	public double AggregateObjectDrawCalls { get; set; }
+
+	/// <summary>Multi-draw indirect submissions from aggregate scene objects. Each one is a single draw call covering every visible fragment of an aggregate.</summary>
+	public double AggregateIndirectSubmits { get; set; }
+
+	/// <summary>Fragments covered by those indirect submissions.</summary>
+	public double AggregateIndirectFragments { get; set; }
 
 	/// <summary>Number of render batch draw lists submitted.</summary>
 	public double RenderBatchDraws { get; set; }

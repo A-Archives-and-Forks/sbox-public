@@ -99,7 +99,11 @@ internal static partial class DebugOverlay
 			Row( painter, ref drawPos, "Draw Calls", f.DrawCalls, $"{trisPerDraw:N0} tris/draw", valueColor: ColourForDrawCalls( f.DrawCalls ) );
 			Row( painter, ref drawPos, "Triangles", f.TrianglesRendered, valueColor: ColourForTrisPerDraw( trisPerDraw ) );
 			if ( f.AggregateObjectDrawCalls > 0 )
-				Row( painter, ref drawPos, "Aggregate Draws", f.AggregateObjectDrawCalls, $"{SafeRatio( f.AggregateObjectDraws, f.AggregateObjectDrawCalls ):N1} frags/draw, {f.AggregateObjectsFullyCulled:N0} fully culled" );
+			{
+				// Everything an indirect submit covered, plus the fragments that drew one at a time
+				double fragments = f.AggregateIndirectFragments + (f.AggregateObjectDrawCalls - f.AggregateIndirectSubmits);
+				Row( painter, ref drawPos, "Aggregate Draws", f.AggregateObjectDrawCalls, $"{SafeRatio( fragments, f.AggregateObjectDrawCalls ):N1} frags/draw, {f.AggregateObjectsFullyCulled:N0} fully culled" );
+			}
 			if ( f.ObjectsFading > 0 ) Row( painter, ref drawPos, "Objects Fading", f.ObjectsFading );
 			Row( painter, ref drawPos, "Display Lists", f.DisplayLists );
 			Row( painter, ref drawPos, "Views", f.SceneViewsRendered );

@@ -837,12 +837,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// <summary>
 	/// The play button was pressed in the editor
 	/// </summary>
-	public void EditorPlay()
+	public bool EditorPlay()
 	{
 		if ( gameInstance is null )
 		{
 			Log.Warning( "Tried to editor play but we don't have a game instance" );
-			return;
+			return false;
 		}
 
 		Game.IsPlaying = true;
@@ -850,8 +850,13 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		if ( !gameInstance.OpenStartupScene() )
 		{
 			Log.Warning( "There was a problem opening the StartupScene" );
-			return;
+			Game.ActiveScene?.Destroy();
+			Game.ActiveScene = null;
+			Game.IsPlaying = false;
+			return false;
 		}
+
+		return true;
 	}
 
 	public TypeLibrary TypeLibrary => Sandbox.Internal.GlobalGameNamespace.TypeLibrary;

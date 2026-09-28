@@ -20,6 +20,8 @@ native class SceneSystemPerFrameStats_t
 	uint m_nAggregateSceneObjectPrimDraws;
 	uint m_nAggregateSceneObjectsFullyCulled;
 	uint m_nAggregateSceneObjectDrawCalls;
+	uint m_nAggregateSceneObjectIndirectSubmits;
+	uint m_nAggregateSceneObjectIndirectFragments;
 	uint m_nNumMaterialCompute;
 	uint m_nNumMaterialSet;
 	uint m_nNumSimilarMaterialSet;
