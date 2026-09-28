@@ -403,6 +403,30 @@ public class NavigationSimulationTests
 	}
 
 	[TestMethod]
+	public void MovingAnAgentAlongItsRouteRepairsInsteadOfReplanning()
+	{
+		var mesh = SyntheticNavMesh.Create( new() { Obstacles = true } );
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var agent = simulation.Add( new Vector3( 100, 1, 320 ), Settings( mesh ) );
+		var target = new Vector3( 540, 1, 320 );
+		agent.MoveTo( target );
+		simulation.Update( 0.02f );
+		long end = agent.Path[^1];
+		foreach ( var position in new[] { new Vector3( 160, 1, 320 ), new Vector3( 200, 1, 360 ) } )
+		{
+			agent.SetPosition( position );
+			Assert.IsFalse( agent.NeedsPath, "Moving an agent on its route requested a full replan" );
+			simulation.Update( 0.02f );
+			agent.Query.FindNearestPoly( position, new Vector3( 8 ), TraversalFilter.Unrestricted, out var polygon, out _, out _ );
+			Assert.IsTrue( agent.State.Navigating );
+			Assert.AreEqual( polygon, agent.Path[0] );
+			Assert.AreEqual( end, agent.Path[^1] );
+		}
+		for ( int i = 0; i < 500; i++ ) simulation.Update( 0.02f );
+		Assert.IsTrue( agent.State.Position.Distance( target ) < 1 );
+	}
+
+	[TestMethod]
 	public void AgentWaitsWhenItsTileDisappearsAndResumesWhenRestored()
 	{
 		var mesh = SyntheticNavMesh.Create();
