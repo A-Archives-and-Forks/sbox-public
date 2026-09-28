@@ -61,6 +61,29 @@ public struct FrameStats
 		TexturePoolNonEvictableBytes = texturePoolNonEvictableBytes;
 	}
 
+	/// <summary>
+	/// Add what the managed scene renderer drew (<c>r_managed_scene</c>), which native's counters don't see: its objects,
+	/// draws, triangles, views and size culling.
+	/// </summary>
+	internal void AddManaged( in Rendering.ManagedFrameCounters managed )
+	{
+		Managed = managed;
+		if ( managed.Renders == 0 ) return;
+
+		ObjectsRendered += managed.ObjectsVisible;
+		ObjectsPreCull += managed.Objects;
+		ObjectsTested += managed.Objects;
+		ObjectsCulledByScreenSize += managed.ObjectsSizeCulled;
+		DrawCalls += managed.TotalDraws;
+		TrianglesRendered += managed.Triangles;
+		SceneViewsRendered += managed.Renders + managed.ShadowViews;
+	}
+
+	/// <summary>
+	/// What the managed scene renderer did in the frame these stats are from - nothing rendered when <c>Renders</c> is 0.
+	/// </summary>
+	internal Rendering.ManagedFrameCounters Managed;
+
 	/// <summary>Number of objects that passed all cull checks and were rendered.</summary>
 	public double ObjectsRendered { get; set; }
 

@@ -216,7 +216,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		Graphics.Attributes.Set( "ClutterLodTanHalfFov", Lod.TanHalfFov );
 		Graphics.Attributes.Set( "ClutterLodViewportWidth", Lod.ViewportWidth );
 		Graphics.Attributes.Set( "ClutterLodOrthoWidth", Lod.OrthoWidth );
-		Graphics.Attributes.Set( "ClutterWorldToProjection", Graphics.SceneView.GetFrustum().GetReverseZViewProjTranspose() );
+		Graphics.Attributes.Set( "ClutterWorldToProjection", Graphics.ViewFrustum.GetReverseZViewProjTranspose() );
 
 		_commandList.ExecuteOnRenderThread();
 	}

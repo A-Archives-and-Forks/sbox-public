@@ -254,6 +254,9 @@ public class AppSystem
 		// Renderpipeline may hold onto native resources, clear them out
 		RenderPipeline.Shutdown();
 
+		// So may the managed scene renderer, if r_managed_scene loaded it
+		Rendering.ManagedSceneRendering.Shutdown();
+
 		// Destroy all cached render targets immediately — must happen before
 		// GlobalContext.Shutdown() so ResourceSystem is still alive for Unregister calls.
 		RenderTarget.Shutdown();
