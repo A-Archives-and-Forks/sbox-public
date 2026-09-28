@@ -668,7 +668,7 @@ internal static partial class SceneCompileCache
 
 			scope.Assets.Add( dependency );
 			var path = dependency.GetSourceFile( true );
-			var hasSource = File.Exists( path );
+			var hasSource = !dependency.IsCloud && File.Exists( path );
 			if ( !hasSource )
 				path = dependency.GetCompiledFile( true );
 
@@ -678,7 +678,7 @@ internal static partial class SceneCompileCache
 			if ( !visited.Add( Path.GetFullPath( path ) ) )
 				return;
 
-			if ( dependency.CanRecompile && !dependency.IsCompiledAndUpToDate )
+			if ( hasSource && dependency.CanRecompile && !dependency.IsCompiledAndUpToDate )
 				throw new InvalidDataException( $"Dependency '{dependency.Path}' must finish compiling before using Compile Scene" );
 
 			AddFile( path );

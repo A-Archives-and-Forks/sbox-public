@@ -306,6 +306,7 @@ internal static partial class SceneCompiler
 
 			using ( compiled.Push() )
 			{
+				sourceFile.ActionGraphCache.Clear();
 				if ( !compiled.Load( sourceFile ) )
 					throw new InvalidOperationException( "Could not load the editable scene for compilation." );
 
