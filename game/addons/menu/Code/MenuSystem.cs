@@ -36,6 +36,7 @@ public partial class MenuSystem : IMenuSystem
 		var startupGameIdent = MenuUtility.StartupGameIdent;
 		if ( !string.IsNullOrEmpty( startupGameIdent ) )
 		{
+			Discovery.Clicked( new DiscoveryContext { Surface = "web" }, startupGameIdent );
 			Game.Overlay.ShowGameModal( startupGameIdent );
 		}
 	}

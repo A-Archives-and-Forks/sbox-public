@@ -155,6 +155,8 @@ public class AppSystem
 
 		try { ErrorReporter.Flush(); } catch { }
 
+		try { Api.Activity.SetExitReason( "crash" ); } catch { }
+
 		try { Api.Shutdown(); } catch { }
 
 		try { NLog.LogManager.Shutdown(); } catch { }
@@ -166,6 +168,8 @@ public class AppSystem
 	{
 		// Tag crash reports during shutdown so they can be filtered in Sentry
 		NativeErrorReporter.SetTag( "shutdown_crash", "true" );
+
+		Api.Activity.SetExitReason( "quit" );
 
 		// Make sure game instance is closed
 		IGameInstanceDll.Current?.CloseGame();

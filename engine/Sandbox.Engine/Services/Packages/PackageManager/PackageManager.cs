@@ -116,6 +116,7 @@ internal static partial class PackageManager
 			if ( ap.HasCodeArchives() )
 			{
 				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
+				Api.Activity.LoadStage( "compile" );
 
 				if ( !await ap.CompileCodeArchive() )
 					Log.Warning( $"There were errors when compiling {package.FullIdent}!" );

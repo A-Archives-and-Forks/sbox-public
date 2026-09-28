@@ -160,6 +160,7 @@
     string videoUrl;
     Rect placed;
     bool introPending = true;
+    bool hoverReported;
 
     Jam _jam;
     JamEntryStatus _entry;
@@ -328,6 +329,13 @@
             return;
         }
 
+        // Only a card that finished appearing counts - not one flown over on the way elsewhere
+        if ( !hoverReported && age >= IntroTime )
+        {
+            hoverReported = true;
+            Discovery.Hovered( Source, Package );
+        }
+
         if ( !showVideo && age >= VideoDelay )
         {
             showVideo = true;
@@ -405,6 +413,7 @@
 
     void Play()
     {
+        Discovery.Launching( Package, "hovercard", Source );
         MenuHelpers.PlayGame( Package );
         Close();
     }

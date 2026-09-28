@@ -105,6 +105,7 @@ public partial class PartyRoom
 	static async Task ConnectAsync( string address, CancellationToken token, Action<LoadingProgress?> progress )
 	{
 		token.ThrowIfCancellationRequested();
+		Api.Activity.GameRequested( new( "party" ) );
 		string failure = null;
 		if ( !await Networking.TryConnect( address, token: token, onFailure: message => failure = message ) )
 			throw new InvalidOperationException( failure ?? "Unable to connect to the party leader's game." );

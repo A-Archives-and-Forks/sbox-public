@@ -101,6 +101,7 @@ public partial class Package
 		if ( downloadQueue.Count <= 0 )
 		{
 			options.Loading?.LoadingProgress( new LoadingProgress { Title = $"Download '{Title}' Complete", Fraction = 1 } );
+			Api.Activity.CurrentLoad?.Downloaded( 0, 0, 0 );
 			return true;
 		}
 
@@ -216,6 +217,8 @@ public partial class Package
 		metric.SetValue( "workers", workers );
 		metric.SetValue( "order", "random" );
 		metric.Submit();
+
+		Api.Activity.CurrentLoad?.Downloaded( totalSize, downloadQueue.Count, sw.Elapsed.TotalSeconds );
 
 		//
 		// Done with this
