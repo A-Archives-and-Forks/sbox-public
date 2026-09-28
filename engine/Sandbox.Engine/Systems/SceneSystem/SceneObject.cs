@@ -149,6 +149,36 @@ public partial class SceneObject : IHandle
 			TransformVersion++;
 			native.SetTransform( value );
 			OnTransformChanged( value );
+			MoveChildren();
+		}
+	}
+
+	/// <summary>
+	/// Children added with <see cref="AddChild"/>, which native moves with this one.
+	/// </summary>
+	List<SceneObject> _children;
+
+	/// <summary>
+	/// Native moved the children with this one (<c>SceneObject_MirrorTransformToChildSceneObjectsRelative</c>, for
+	/// <c>CHILD_SCENEOBJECT_INHERIT_TRANSFORM</c>), and theirs with them: read each one's transform back, as its own setter
+	/// would have set it, or its <see cref="Transform"/> stays where it was.
+	/// </summary>
+	void MoveChildren()
+	{
+		if ( _children is null ) return;
+
+		foreach ( var child in _children )
+		{
+			if ( !child.IsValid() ) continue;
+
+			var moved = child.native.GetCTransform();
+			if ( child._transformSet && child._transform == moved ) continue;
+
+			child._transformSet = true;
+			child._transform = moved;
+			child.TransformVersion++;
+			child.OnTransformChanged( moved );
+			child.MoveChildren();
 		}
 	}
 
@@ -261,6 +291,7 @@ public partial class SceneObject : IHandle
 			return;
 
 		native.AddChildObject( name, child, 0x02 );
+		(_children ??= new()).Add( child );
 	}
 
 	/// <summary>
@@ -272,6 +303,7 @@ public partial class SceneObject : IHandle
 			return;
 
 		native.RemoveChild( child );
+		_children?.Remove( child );
 	}
 
 	/// <summary>
