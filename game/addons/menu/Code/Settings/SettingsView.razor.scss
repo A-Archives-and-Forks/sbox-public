@@ -289,6 +289,14 @@ SettingsView
 			align-items: center;
 			flex-shrink: 0;
 			width: $settings-control;
+
+			// Holds a control made in code, give it the whole width
+			.custom
+			{
+				flex-grow: 1;
+				flex-direction: row;
+				align-items: center;
+			}
 		}
 
 		.note
