@@ -123,6 +123,7 @@ public partial class SceneObject : IHandle
 	}
 
 	Transform _transform;
+	bool _transformSet;
 
 	/// <summary>
 	/// Incremented whenever <see cref="Transform"/> actually changes. Cheap way for
@@ -135,12 +136,15 @@ public partial class SceneObject : IHandle
 	/// </summary>
 	public Transform Transform
 	{
-		get => _transform;
+		// Until it's set from here, native's: an object native made - a map's world geometry - is placed by native, and
+		// read as default(Transform), zero scale and all
+		get => _transformSet || native.IsNull ? _transform : native.GetCTransform();
 		set
 		{
-			if ( _transform == value )
+			if ( _transformSet && _transform == value )
 				return;
 
+			_transformSet = true;
 			_transform = value;
 			TransformVersion++;
 			native.SetTransform( value );
