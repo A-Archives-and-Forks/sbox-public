@@ -18,11 +18,12 @@ sealed class SceneCompileToast : ToastWidget
 			Title = status switch
 			{
 				"Done" => "Scene compiled",
+				"Out of date" => "Scene compiled (out of date)",
 				"Cancelled" => "Scene compile cancelled",
 				_ => "Scene compile failed"
 			},
 			Subtitle = name,
-			Icon = failed ? "error_outline" : status == "Done" ? "check_circle" : "cancel",
+			Icon = failed ? "error_outline" : status == "Done" ? "check_circle" : status == "Out of date" ? "update" : "cancel",
 			BorderColor = failed ? Theme.Red : status == "Done" ? Theme.Green : Theme.Yellow,
 			DrawTimer = false,
 			IsRunning = false

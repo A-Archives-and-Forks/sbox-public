@@ -50,7 +50,7 @@ internal static partial class SceneCompileCache
 		}
 	}
 
-	static void ValidateCompilationFiles( string source, Compilation compilation, CancellationToken cancel, HashSet<string> paths )
+	static void ValidateCompilationFiles( string source, Compilation compilation, CancellationToken cancel, HashSet<string> paths, bool validateInputs = true )
 	{
 		if ( compilation is null || compilation.Version != Version || !Guid.TryParseExact( compilation.Generation, "N", out _ )
 			|| compilation.Source?.Inputs is null || compilation.Source.Inputs.Count == 0 || compilation.Outputs is null
@@ -60,11 +60,14 @@ internal static partial class SceneCompileCache
 		foreach ( var name in compilation.Source.Inputs.Keys )
 			paths.Add( InputPath( source, name ) );
 
-		foreach ( var (name, hash) in compilation.Source.Inputs )
+		if ( validateInputs )
 		{
-			cancel.ThrowIfCancellationRequested();
-			if ( InputFingerprint( InputPath( source, name ) ) != hash )
-				throw new InvalidDataException( Error( source, "is stale because a saved input changed" ) );
+			foreach ( var (name, hash) in compilation.Source.Inputs )
+			{
+				cancel.ThrowIfCancellationRequested();
+				if ( InputFingerprint( InputPath( source, name ) ) != hash )
+					throw new InvalidDataException( Error( source, "is stale because a saved input changed" ) );
+			}
 		}
 
 		foreach ( var (name, hash) in compilation.Outputs )

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using Sandbox;
 
 namespace Editor;
@@ -113,7 +112,7 @@ internal static partial class SceneCompiler
 	/// <summary>
 	/// Compile geometry in the editor, yielding between steps while preserving native thread affinity.
 	/// </summary>
-	internal static async Task<string[]> Compile( Sources sources, SceneCompilerSettings settings, SceneCompileSession session )
+	internal static async Task<(string[] Summary, bool IsCurrent)> Compile( Sources sources, SceneCompilerSettings settings, SceneCompileSession session )
 	{
 		if ( _running )
 			throw new InvalidOperationException( "A scene compile is already running." );
@@ -125,76 +124,67 @@ internal static partial class SceneCompiler
 		var sourcePath = sources.Asset.GetSourceFile( true );
 		_running = true;
 		OutputFolder = $"/compiled/{generation}";
-		string[] summary = null;
+		(string[] Summary, bool IsCurrent) result = default;
+		Scene compiled = null;
 
 		try
 		{
-			summary = await Run( sources, session, generation );
+			var scene = sources.Scene;
+			if ( !scene.IsValid() || Game.IsPlaying || scene.Editor is SceneEditorSession { IsPrefabSession: true } )
+				throw new InvalidOperationException( "Stop playing and open a scene rather than a prefab before compiling." );
+
+			if ( scene.Editor is null || scene.Editor.HasUnsavedChanges )
+				throw new InvalidOperationException( "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled." );
+
+			session.Cancel.ThrowIfCancellationRequested();
+			session.Phase( "Copying scene" );
+			var snapshot = SceneCompileCache.Capture( sources.Asset );
+			var sourceFile = scene.CreateSceneFile();
+
+			// A game scene would also load the project's system scene and network spawns.
+			compiled = Scene.CreateEditorScene();
+			using ( compiled.Push() )
+			{
+				sourceFile.ActionGraphCache.Clear();
+				if ( !compiled.Load( sourceFile ) )
+					throw new InvalidOperationException( "Could not load the editable scene for compilation." );
+			}
+
+			SceneCompileCache.BeginGeneration( sources.Asset, generation );
+			result = await Run( sources, compiled, sourceFile.Id, sourcePath, snapshot, session, generation );
 		}
 		finally
 		{
 			try
 			{
-				if ( summary is null )
-					SceneCompileCache.DiscardGeneration( sourcePath, generation );
+				compiled?.Destroy();
 			}
 			finally
 			{
-				_running = false;
-				OutputFolder = null;
+				try
+				{
+					if ( result.Summary is null )
+						SceneCompileCache.DiscardGeneration( sourcePath, generation );
+				}
+				finally
+				{
+					_running = false;
+					OutputFolder = null;
+				}
 			}
 		}
 
-		return summary;
+		return result;
 	}
 
-	static async Task<string[]> Run( Sources sources, SceneCompileSession session, string generation )
+	static async Task<(string[] Summary, bool IsCurrent)> Run( Sources sources, Scene compiled, Guid sceneId, string sourcePath,
+		SceneCompileCache.Snapshot snapshot, SceneCompileSession session, string generation )
 	{
-		var scene = sources.Scene;
 		var sourceAsset = sources.Asset;
 		var sceneFolder = sources.Folder;
-		var meshes = sources.Meshes;
-		var props = sources.Props;
-
-		if ( !scene.IsValid() )
-			throw new OperationCanceledException( "The source scene was closed." );
-
-		if ( Game.IsPlaying || scene.Editor is SceneEditorSession { IsPrefabSession: true } )
-			throw new InvalidOperationException( "Stop playing and open a scene rather than a prefab before compiling." );
-
-		if ( scene.Editor is null || scene.Editor.HasUnsavedChanges )
-			throw new InvalidOperationException( "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled." );
-
-		session.Cancel.ThrowIfCancellationRequested();
-		session.Phase( "Reading scene data" );
-		await Task.Delay( 1, session.Cancel );
-		var snapshot = SceneCompileCache.Capture( sourceAsset );
-		var sourcePath = sourceAsset.GetSourceFile( true );
-		var sourceFile = scene.CreateSceneFile();
-		var jsonOptions = new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 };
-		var sourceJson = sourceFile.Serialize().ToJsonString( jsonOptions );
-		var sourceBlob = sourceFile.BinaryData?.ToArray() ?? [];
-		SceneCompileCache.BeginGeneration( sourceAsset, generation );
-
-		void RequireUnchanged()
-		{
-			session.Cancel.ThrowIfCancellationRequested();
-			if ( !scene.IsValid() )
-				throw new OperationCanceledException( "The source scene was closed." );
-
-			if ( Game.IsPlaying )
-				throw new InvalidOperationException( "Play mode started while compiling. Stop playing, then compile again." );
-
-			if ( scene.Editor is null || scene.Editor.HasUnsavedChanges )
-				throw new InvalidOperationException( "The scene changed while compiling. Save the scene, then use Scene > Compile Scene again." );
-
-			if ( !string.Equals( sourcePath, sourceAsset.GetSourceFile( true ), StringComparison.OrdinalIgnoreCase ) )
-				throw new InvalidOperationException( "The scene moved while compiling. Use Scene > Compile Scene again at its new location." );
-
-			var current = scene.CreateSceneFile();
-			if ( current.Serialize().ToJsonString( jsonOptions ) != sourceJson || !(current.BinaryData ?? []).AsSpan().SequenceEqual( sourceBlob ) )
-				throw new InvalidOperationException( "The scene changed while compiling. Save the scene, then use Scene > Compile Scene again." );
-		}
+		var discovered = DiscoverSources( compiled ).ToArray();
+		var meshes = Gather<MeshComponent>( discovered );
+		var props = Gather<ModelRenderer>( discovered );
 
 		var frame = FastTimer.StartNew();
 
@@ -203,33 +193,25 @@ internal static partial class SceneCompiler
 		async Task Step( int current, int total )
 		{
 			session.Cancel.ThrowIfCancellationRequested();
-			if ( !scene.IsValid() )
-				throw new OperationCanceledException( "The source scene was closed." );
 
 			if ( frame.ElapsedMilliSeconds < 30 )
 				return;
 
 			session.Step( current, total );
 
-			await Task.Delay( 1 );
-			session.Cancel.ThrowIfCancellationRequested();
-			if ( !scene.IsValid() )
-				throw new OperationCanceledException( "The source scene was closed." );
+			await Task.Delay( 1, session.Cancel );
 
 			frame = FastTimer.StartNew();
 		}
 
 		session.Phase( "Compiling geometry" );
-		await Task.Delay( 1 );
-		session.Cancel.ThrowIfCancellationRequested();
-		if ( !scene.IsValid() )
-			throw new OperationCanceledException( "The source scene was closed." );
+		await Task.Delay( 1, session.Cancel );
 
 		var processed = new HashSet<Guid>();
 		var plan = await Plan( meshes, props, processed, Step, session.Cancel );
 
 		if ( plan is null )
-			return null;
+			return default;
 
 		var plans = plan.Aggregates;
 		var statistics = new SceneCompileStatistics();
@@ -258,15 +240,14 @@ internal static partial class SceneCompiler
 		}
 
 		session.Phase( "Building collision" );
-		await Task.Delay( 1 );
+		await Task.Delay( 1, session.Cancel );
 
 		var physics = await BuildCollision( plan.Collision, plan.Shapes, Step );
 
 		session.Phase( "Writing resources" );
-		await Task.Delay( 1 );
+		await Task.Delay( 1, session.Cancel );
 
-		RequireUnchanged();
-		SceneCompileCache.RequireUnchanged( sourceAsset, snapshot );
+		session.Cancel.ThrowIfCancellationRequested();
 
 		var models = new Model[plans.Length];
 
@@ -290,141 +271,120 @@ internal static partial class SceneCompiler
 			await Step( i + 1, physics.Count );
 		}
 
-		session.Phase( "Cloning scene" );
-		await Task.Delay( 1 );
-
-		// An editor scene, not a game one - loading a scene file into a game scene additively pulls
-		// in the project's system scene and network spawns everything, and all of that would end up
-		// saved into the compile.
-		var compiled = Scene.CreateEditorScene();
 		var converted = 0;
 		SceneFile file = null;
 
-		try
+		var leftovers = new HashSet<Guid>();
+
+		foreach ( var mesh in compiled.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants ) )
 		{
-			var leftovers = new HashSet<Guid>();
-
-			using ( compiled.Push() )
+			if ( !processed.Contains( mesh.Id ) )
 			{
-				sourceFile.ActionGraphCache.Clear();
-				if ( !compiled.Load( sourceFile ) )
-					throw new InvalidOperationException( "Could not load the editable scene for compilation." );
-
-				foreach ( var mesh in compiled.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants ) )
-				{
-					if ( !processed.Contains( mesh.Id ) )
-					{
-						leftovers.Add( mesh.Id );
-					}
-				}
+				leftovers.Add( mesh.Id );
 			}
-
-			if ( leftovers.Count > 0 )
-			{
-				session.Phase( $"Converting {leftovers.Count} meshes" );
-				await Task.Delay( 1 );
-
-				converted = await ConvertMeshes( compiled, leftovers, sceneFolder, statistics, Step );
-				processed.UnionWith( leftovers );
-			}
-
-			session.Phase( "Stripping compiled geometry" );
-			await Task.Delay( 1 );
-
-			using ( compiled.Push() )
-			{
-				// Unlink affected prefabs before stripping their source
-				// components so those components cannot return when the prefab expands again.
-				foreach ( var go in compiled.Children.ToArray() )
-				{
-					Unlink( go, processed );
-				}
-
-				StripCompiled( compiled, processed );
-
-				session.Phase( "Building objects" );
-
-				GameObject root = null;
-
-				// Nothing under here is meant to be touched by hand - the next compile throws it all
-				// away and builds it again, so keep it out of the hierarchy and out of selection.
-				if ( plans.Length > 0 || collision.Length > 0 )
-				{
-					root = compiled.CreateObject();
-					root.Name = "World";
-					root.IsStatic = true;
-					root.Flags |= GameObjectFlags.Hidden;
-				}
-
-				for ( int i = 0; i < plans.Length; i++ )
-				{
-					var go = compiled.CreateObject();
-					go.SetParent( root );
-					go.Flags |= GameObjectFlags.Hidden;
-					ApplyTags( go, plans[i].Tags );
-
-					// Aggregates are an opaque path, so translucent geometry is compiled into a model
-					// and drawn like any other model instead.
-					if ( plans[i].Translucent )
-					{
-						go.Name = $"Translucent {i}";
-						go.LocalTransform = plans[i].Transform;
-
-						var model = go.AddComponent<ModelRenderer>();
-						model.Model = models[i];
-						model.Tint = plans[i].Tint;
-
-						continue;
-					}
-
-					go.Name = $"Aggregate {i}";
-
-					var renderer = go.AddComponent<AggregateRenderer>();
-					renderer.Model = models[i];
-					renderer.Tint = plans[i].Tint;
-					renderer.Fragments = fragments[i].ToList();
-				}
-
-				for ( int i = 0; i < collision.Length; i++ )
-				{
-					var go = compiled.CreateObject();
-					go.Name = $"Collision {i}";
-					go.SetParent( root );
-					go.Flags |= GameObjectFlags.Hidden;
-					ApplyTags( go, physics[i].Tags );
-
-					var collider = go.AddComponent<PhysicsCollider>();
-					collider.Physics = collision[i];
-					collider.Static = true;
-				}
-
-				if ( compiled.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants ).FirstOrDefault() is { } remainingMesh )
-					throw new InvalidOperationException( $"Cannot publish the compiled scene: mesh '{remainingMesh.GameObject.Name}' was not converted. Compiled scenes cannot contain MeshComponents." );
-
-				file = new SceneFile();
-				compiled.ToSceneFile( file );
-				file.Id = sourceFile.Id;
-			}
-
-			session.Phase( "Writing runtime scene" );
-			SceneCompileCache.Publish( sourceAsset, generation, file, snapshot, Settings, RequireUnchanged );
-			Settings.SaveDefaults();
-			session.Statistics = statistics;
-
-			var translucent = plans.Count( x => x.Translucent );
-			var aggregateCount = plans.Length - translucent;
-			var summary = new List<string> { $"{aggregateCount:n0} {(aggregateCount == 1 ? "aggregate" : "aggregates")}" };
-
-			if ( translucent > 0 ) summary.Add( $"{translucent:n0} translucent {(translucent == 1 ? "model" : "models")}" );
-			if ( converted > 0 ) summary.Add( $"{converted:n0} converted {(converted == 1 ? "mesh" : "meshes")}" );
-			if ( collision.Length > 0 ) summary.Add( $"{collision.Length:n0} collision {(collision.Length == 1 ? "group" : "groups")}" );
-
-			return [.. summary];
 		}
-		finally
+
+		if ( leftovers.Count > 0 )
 		{
-			compiled.Destroy();
+			session.Phase( $"Converting {leftovers.Count} meshes" );
+			await Task.Delay( 1, session.Cancel );
+
+			converted = await ConvertMeshes( compiled, leftovers, sceneFolder, statistics, Step );
+			processed.UnionWith( leftovers );
 		}
+
+		session.Phase( "Stripping compiled geometry" );
+		await Task.Delay( 1, session.Cancel );
+
+		using ( compiled.Push() )
+		{
+			// Unlink affected prefabs before stripping their source
+			// components so those components cannot return when the prefab expands again.
+			foreach ( var go in compiled.Children.ToArray() )
+			{
+				Unlink( go, processed );
+			}
+
+			StripCompiled( compiled, processed );
+
+			session.Phase( "Building objects" );
+
+			GameObject root = null;
+
+			// Nothing under here is meant to be touched by hand - the next compile throws it all
+			// away and builds it again, so keep it out of the hierarchy and out of selection.
+			if ( plans.Length > 0 || collision.Length > 0 )
+			{
+				root = compiled.CreateObject();
+				root.Name = "World";
+				root.IsStatic = true;
+				root.Flags |= GameObjectFlags.Hidden;
+			}
+
+			for ( int i = 0; i < plans.Length; i++ )
+			{
+				var go = compiled.CreateObject();
+				go.SetParent( root );
+				go.Flags |= GameObjectFlags.Hidden;
+				ApplyTags( go, plans[i].Tags );
+
+				// Aggregates are an opaque path, so translucent geometry is compiled into a model
+				// and drawn like any other model instead.
+				if ( plans[i].Translucent )
+				{
+					go.Name = $"Translucent {i}";
+					go.LocalTransform = plans[i].Transform;
+
+					var model = go.AddComponent<ModelRenderer>();
+					model.Model = models[i];
+					model.Tint = plans[i].Tint;
+
+					continue;
+				}
+
+				go.Name = $"Aggregate {i}";
+
+				var renderer = go.AddComponent<AggregateRenderer>();
+				renderer.Model = models[i];
+				renderer.Tint = plans[i].Tint;
+				renderer.Fragments = fragments[i].ToList();
+			}
+
+			for ( int i = 0; i < collision.Length; i++ )
+			{
+				var go = compiled.CreateObject();
+				go.Name = $"Collision {i}";
+				go.SetParent( root );
+				go.Flags |= GameObjectFlags.Hidden;
+				ApplyTags( go, physics[i].Tags );
+
+				var collider = go.AddComponent<PhysicsCollider>();
+				collider.Physics = collision[i];
+				collider.Static = true;
+			}
+
+			if ( compiled.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants ).FirstOrDefault() is { } remainingMesh )
+				throw new InvalidOperationException( $"Cannot publish the compiled scene: mesh '{remainingMesh.GameObject.Name}' was not converted. Compiled scenes cannot contain MeshComponents." );
+
+			file = new SceneFile();
+			compiled.ToSceneFile( file );
+			file.Id = sceneId;
+		}
+
+		session.Phase( "Writing runtime scene" );
+		var isCurrent = SceneCompileCache.Publish( sourceAsset, sourcePath, generation, file, snapshot, Settings, session.Cancel );
+		Settings.SaveDefaults();
+		session.Statistics = statistics;
+
+		var translucent = plans.Count( x => x.Translucent );
+		var aggregateCount = plans.Length - translucent;
+		var summary = new List<string> { $"{aggregateCount:n0} {(aggregateCount == 1 ? "aggregate" : "aggregates")}" };
+
+		if ( translucent > 0 ) summary.Add( $"{translucent:n0} translucent {(translucent == 1 ? "model" : "models")}" );
+		if ( converted > 0 ) summary.Add( $"{converted:n0} converted {(converted == 1 ? "mesh" : "meshes")}" );
+		if ( collision.Length > 0 ) summary.Add( $"{collision.Length:n0} collision {(collision.Length == 1 ? "group" : "groups")}" );
+
+		return ([.. summary], isCurrent);
 	}
 
 	/// <summary>
@@ -445,7 +405,7 @@ internal static partial class SceneCompiler
 	/// <summary>
 	/// Everything in the scene we can compile, noting what we're leaving alone and why.
 	/// </summary>
-	static T[] Gather<T>( IEnumerable<Source> sources, List<Skip> skipped ) where T : Component
+	static T[] Gather<T>( IEnumerable<Source> sources, List<Skip> skipped = null ) where T : Component
 	{
 		var found = new List<T>();
 
@@ -460,7 +420,7 @@ internal static partial class SceneCompiler
 				continue;
 			}
 
-			skipped.Add( new Skip( component, source.Label, reason ) );
+			skipped?.Add( new Skip( component, source.Label, reason ) );
 		}
 
 		return [.. found];

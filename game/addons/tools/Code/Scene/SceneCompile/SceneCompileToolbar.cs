@@ -182,7 +182,7 @@ sealed class SceneCompileToolbar : Widget, AssetSystem.IEventListener
 		if ( _session.Running )
 			return _session.Cancelling
 				? ("Cancelling", "Stopping compilation and removing unfinished output.", Theme.Blue)
-				: (_session.Status, "Editing this scene cancels the compile.", Theme.Blue);
+				: (_session.Status, "Compiling an isolated snapshot. You can keep editing the scene.", Theme.Blue);
 
 		if ( Game.IsPlaying )
 			return ("Play mode", "Stop playing before compiling the scene.", Theme.TextLight);

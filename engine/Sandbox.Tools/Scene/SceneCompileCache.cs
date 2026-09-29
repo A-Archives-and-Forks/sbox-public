@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using Sandbox.Resources;
 
 namespace Editor;
@@ -29,6 +30,7 @@ internal static partial class SceneCompileCache
 	internal sealed class Snapshot
 	{
 		public Dictionary<string, string> Inputs { get; set; } = new( StringComparer.OrdinalIgnoreCase );
+		internal JsonNode SceneData { get; init; }
 	}
 
 	internal sealed class Compilation
@@ -50,18 +52,9 @@ internal static partial class SceneCompileCache
 		readonly Dictionary<string, bool> _history = new( StringComparer.OrdinalIgnoreCase );
 		readonly Dictionary<string, Compilation> _compilations = new( StringComparer.OrdinalIgnoreCase );
 		Dictionary<Guid, Asset> _assets;
-		internal HashSet<string> Paths { get; } = new( StringComparer.OrdinalIgnoreCase );
-		internal HashSet<Asset> Assets { get; } = new();
-
-		internal void Track( string path )
-		{
-			if ( !string.IsNullOrEmpty( path ) )
-				Paths.Add( Path.GetFullPath( path ) );
-		}
 
 		internal string FileHash( string path )
 		{
-			Track( path );
 			path = Path.GetFullPath( path );
 			if ( !_files.TryGetValue( path, out var hash ) )
 				_files.Add( path, hash = Fingerprint( path ) );
@@ -73,7 +66,6 @@ internal static partial class SceneCompileCache
 			if ( !path.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) )
 				return FileHash( path );
 
-			Track( path );
 			path = Path.GetFullPath( path );
 			if ( !_inputs.TryGetValue( path, out var hash ) )
 				_inputs.Add( path, hash = InputFingerprint( path ) );
@@ -419,11 +411,6 @@ internal static partial class SceneCompileCache
 
 		try
 		{
-			scope.Track( source );
-			scope.Track( source + "_d" );
-			scope.Track( MetadataPath( source ) );
-			scope.Track( ManifestPath( source ) );
-			scope.Track( CompiledPath( source ) );
 			if ( !scope.HasHistory( source ) )
 				return true;
 
@@ -435,9 +422,6 @@ internal static partial class SceneCompileCache
 				|| compilation.Source?.Inputs is null || compilation.Source.Inputs.Count == 0 || compilation.Outputs is null
 				|| !compilation.Outputs.ContainsKey( SceneJson ) || !compilation.Outputs.ContainsKey( SceneBlob ) )
 				throw new InvalidDataException( "has an invalid or incompatible manifest" );
-
-			foreach ( var name in compilation.Source.Inputs.Keys )
-				scope.Track( InputPath( source, name ) );
 
 			foreach ( var (name, hash) in compilation.Outputs )
 			{
@@ -628,13 +612,13 @@ internal static partial class SceneCompileCache
 	/// </summary>
 	internal static Snapshot Capture( Asset asset ) => Capture( SourcePath( asset ) );
 
-	static Snapshot Capture( string source, ValidationScope scope = null )
+	static Snapshot Capture( string source, ValidationScope scope = null, JsonNode sceneData = null )
 	{
 		scope ??= new();
 		if ( !File.Exists( source ) )
 			throw new InvalidDataException( $"Source scene '{source}' is missing" );
 
-		var snapshot = new Snapshot();
+		var snapshot = new Snapshot { SceneData = sceneData ?? ReadSourceJson( source ) };
 		var visited = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { Path.GetFullPath( source ) };
 
 		void AddFile( string path )
@@ -666,7 +650,6 @@ internal static partial class SceneCompileCache
 			if ( IsScene( dependency ) )
 				return;
 
-			scope.Assets.Add( dependency );
 			var path = dependency.GetSourceFile( true );
 			var hasSource = !dependency.IsCloud && File.Exists( path );
 			if ( !hasSource )
@@ -751,7 +734,7 @@ internal static partial class SceneCompileCache
 		AddFile( source );
 		AddFile( MetadataPath( source ) );
 		AddFile( source + "_d" );
-		ScanJson( source );
+		ScanNode( snapshot.SceneData );
 		return snapshot;
 	}
 
@@ -775,7 +758,23 @@ internal static partial class SceneCompileCache
 		}
 	}
 
-	internal static void RequireUnchanged( Asset asset, Snapshot snapshot ) => RequireUnchanged( SourcePath( asset ), snapshot );
+	static bool IsSceneInput( string source, string name ) =>
+		name.Equals( Path.GetFileName( source ), StringComparison.OrdinalIgnoreCase )
+		|| name.Equals( Path.GetFileName( source ) + "_d", StringComparison.OrdinalIgnoreCase )
+		|| name.Equals( Path.GetFileName( MetadataPath( source ) ), StringComparison.OrdinalIgnoreCase );
+
+	static bool SceneInputsUnchanged( string source, Snapshot snapshot ) =>
+		snapshot.Inputs.Where( x => IsSceneInput( source, x.Key ) ).All( x => InputFingerprint( InputPath( source, x.Key ) ) == x.Value );
+
+	static void RequireDependenciesUnchanged( string source, Snapshot snapshot )
+	{
+		// Follow the initial scene's references even if a later save changes its dependency graph.
+		var current = Capture( source, sceneData: snapshot.SceneData );
+		if ( current.Inputs.Count != snapshot.Inputs.Count
+			|| snapshot.Inputs.Any( x => !IsSceneInput( source, x.Key )
+				&& (!current.Inputs.TryGetValue( x.Key, out var hash ) || hash != x.Value) ) )
+			throw new InvalidDataException( Error( source, "has a dependency that changed during compilation" ) );
+	}
 
 	static void RequireUnchanged( string source, Snapshot snapshot, ValidationScope scope = null )
 	{
@@ -896,17 +895,26 @@ internal static partial class SceneCompileCache
 	/// Publish a completed generation, then force the standard resource compiler to create .scene_c.
 	/// Roll back the selector and compiled file if compilation fails; never touch .scene or .scene_d.
 	/// </summary>
-	internal static void Publish( Asset asset, string generation, SceneFile file, Snapshot snapshot, SceneCompilerSettings settings, Action requireUnchanged )
+	/// <returns>Whether the published snapshot still matches the saved scene.</returns>
+	internal static bool Publish( Asset asset, string source, string generation, SceneFile file, Snapshot snapshot, SceneCompilerSettings settings, CancellationToken cancel )
 	{
 		settings.Validate();
-		var source = SourcePath( asset );
-		var sourceJson = ReadSourceJson( source );
-		if ( (sourceJson?["__guid"] ?? sourceJson?["Id"])?.GetValue<Guid>() != file.Id )
-			throw new InvalidDataException( Error( source, "does not match the saved scene's identity" ) );
+		void RequireSource()
+		{
+			cancel.ThrowIfCancellationRequested();
+			if ( asset.IsDeleted || !File.Exists( source )
+				|| !string.Equals( source, asset.GetSourceFile( true ), StringComparison.OrdinalIgnoreCase ) )
+				throw new InvalidDataException( Error( source, "was moved or deleted during compilation" ) );
+
+			var sourceJson = ReadSourceJson( source );
+			if ( (sourceJson?["__guid"] ?? sourceJson?["Id"])?.GetValue<Guid>() != file.Id )
+				throw new InvalidDataException( Error( source, "does not match the saved scene's identity" ) );
+		}
+
+		RequireSource();
 
 		var compilation = new Compilation { Version = Version, SceneId = file.Id, Generation = generation, Source = snapshot, Outputs = new() };
 		var folder = Path.GetDirectoryName( OutputPath( source, compilation, SceneJson ) );
-		BeginGeneration( asset, generation );
 		file.IsCompiled = true;
 		var jsonObject = file.Serialize();
 		jsonObject["__scene_compiled"] = true;
@@ -918,8 +926,7 @@ internal static partial class SceneCompileCache
 		foreach ( var output in Directory.EnumerateFiles( folder ) )
 			compilation.Outputs.Add( Path.GetFileName( output ), Fingerprint( output ) );
 
-		requireUnchanged();
-		RequireUnchanged( source, snapshot );
+		RequireDependenciesUnchanged( source, snapshot );
 
 		var manifest = ManifestPath( source );
 		var previous = File.Exists( manifest ) ? File.ReadAllBytes( manifest ) : null;
@@ -931,13 +938,16 @@ internal static partial class SceneCompileCache
 		metadata[SceneCompilerSettings.MetadataProperty] = JsonSerializer.SerializeToNode( settings );
 		var updatedMetadata = JsonSerializer.SerializeToUtf8Bytes( metadata, JsonOptions );
 		compilation.Source = new Snapshot { Inputs = new( snapshot.Inputs, StringComparer.OrdinalIgnoreCase ) };
-		compilation.Source.Inputs[Path.GetFileName( MetadataPath( source ) )] = MetadataFingerprint( updatedMetadata );
+		var metadataKey = Path.GetFileName( MetadataPath( source ) );
+		if ( snapshot.Inputs[metadataKey] == MetadataFingerprint( previousMetadata ) )
+			compilation.Source.Inputs[metadataKey] = MetadataFingerprint( updatedMetadata );
 		var metadataWritten = false;
 		var success = false;
+		var isCurrent = false;
 
 		try
 		{
-			RequireUnchanged( source, snapshot );
+			RequireSource();
 			if ( previousMetadata is null || !previousMetadata.AsSpan().SequenceEqual( updatedMetadata ) )
 			{
 				WriteAtomic( MetadataPath( source ), updatedMetadata );
@@ -948,11 +958,18 @@ internal static partial class SceneCompileCache
 			if ( !asset.Compile( true ) || asset.IsCompileFailed || !File.Exists( compiled ) )
 				throw new InvalidOperationException( $"Could not compile '{asset.Path}' into its runtime .scene_c. See the resource-compiler error in the editor console. The previous compilation has been preserved." );
 
-			requireUnchanged();
-			var validation = new ValidationScope();
-			RequireUnchanged( source, compilation.Source, validation );
-			if ( !Validate( asset, out var error, validation ) )
-				throw new InvalidOperationException( error );
+			RequireSource();
+			RequireDependenciesUnchanged( source, snapshot );
+			ValidateCompilationFiles( source, compilation, cancel, new( StringComparer.OrdinalIgnoreCase ), validateInputs: false );
+			var runtime = ReadCompiledJson( source, out var data );
+			isCurrent = SceneInputsUnchanged( source, compilation.Source );
+			// A save during compilation makes the resource compiler emit an explicit unavailable
+			// scene. Retain the snapshot, but never bless that stale generation as current.
+			if ( isCurrent
+				|| runtime?["__scene_compiled"]?.GetValue<bool>() != true
+				|| runtime["__guid"]?.GetValue<Guid>() != file.Id
+				|| string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
+				ValidateRuntime( data, compilation );
 			success = true;
 		}
 		finally
@@ -973,5 +990,6 @@ internal static partial class SceneCompileCache
 		}
 
 		PruneGenerations( source );
+		return isCurrent;
 	}
 }
