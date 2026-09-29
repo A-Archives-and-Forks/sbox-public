@@ -102,12 +102,6 @@ partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// A model's collision in model space. Reading it crosses into native once per vertex, so we do
-	/// it once per model and transform the result for every instance.
-	/// </summary>
-	internal sealed record ModelCollision( ModelCollisionPart[] Parts );
-
-	/// <summary>
 	/// One aggregate's worth of geometry, grouped and split but not yet turned into a model.
 	/// </summary>
 	internal sealed record AggregatePlan( Material Material, Color Tint, string Tags, Transform Transform, Chunk[] Chunks )
@@ -239,7 +233,7 @@ partial class SceneCompiler
 		var groups = new Dictionary<GroupKey, List<Chunk>>();
 		var collision = new List<CollisionChunk>();
 		var shapes = new List<CollisionShape>();
-		var physics = new Dictionary<Model, ModelCollision>();
+		var physics = new Dictionary<Model, ModelCollisionPart[]>();
 		var total = meshes.Length + props.Length;
 		var done = 0;
 

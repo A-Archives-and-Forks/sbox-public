@@ -149,10 +149,8 @@ partial class SceneCompiler
 	/// <summary>
 	/// Weld a model's collision into the world, keeping the surface each shape was built with unless
 	/// the component overrides it. Triangle meshes join the welded soup, everything else stays convex.
-	/// A mesh built for hull collision carries both shapes and picks the hulls at runtime, so
-	/// <paramref name="convexOnly"/> leaves its triangles behind the same way.
 	/// </summary>
-	static void AddModelCollision( List<CollisionChunk> chunks, List<CollisionShape> shapes, Dictionary<Model, ModelCollision> cache, Model model, in Transform world, Surface surface, string tags, bool convexOnly = false )
+	static void AddModelCollision( List<CollisionChunk> chunks, List<CollisionShape> shapes, Dictionary<Model, ModelCollisionPart[]> cache, Model model, in Transform world, Surface surface, string tags )
 	{
 		if ( !model.IsValid() )
 			return;
@@ -166,20 +164,17 @@ partial class SceneCompiler
 		if ( local is null )
 			return;
 
-		foreach ( var part in local.Parts )
+		foreach ( var part in local )
 		{
 			var transform = world.ToWorld( part.Transform );
 			var mirrored = transform.Scale.x * transform.Scale.y * transform.Scale.z < 0.0f;
 
-			if ( !convexOnly )
+			foreach ( var chunk in part.Chunks )
 			{
-				foreach ( var chunk in part.Chunks )
-				{
-					var indices = mirrored ? Flipped( chunk.Indices ) : chunk.Indices;
+				var indices = mirrored ? Flipped( chunk.Indices ) : chunk.Indices;
 
-					// A component surface overrides the whole model, per triangle assignments included
-					chunks.Add( new CollisionChunk( Transformed( chunk.Positions, transform ), indices, surface ?? chunk.Surface, tags, surface is null ? chunk.TriangleSurfaces : null ) );
-				}
+				// A component surface overrides the whole model, per triangle assignments included
+				chunks.Add( new CollisionChunk( Transformed( chunk.Positions, transform ), indices, surface ?? chunk.Surface, tags, surface is null ? chunk.TriangleSurfaces : null ) );
 			}
 
 			foreach ( var shape in part.Shapes )
@@ -193,7 +188,7 @@ partial class SceneCompiler
 	/// Keep geometry in physics-part space so instances compose their scale and rotation with
 	/// the part transform before transforming vertices, just like ModelCollider.
 	/// </summary>
-	static ModelCollision ReadCollision( Model model )
+	static ModelCollisionPart[] ReadCollision( Model model )
 	{
 		if ( model.Physics is null )
 			return null;
@@ -236,7 +231,7 @@ partial class SceneCompiler
 				parts.Add( new ModelCollisionPart( part.Transform, [.. chunks], [.. shapes] ) );
 		}
 
-		return parts.Count == 0 ? null : new ModelCollision( [.. parts] );
+		return parts.Count == 0 ? null : [.. parts];
 	}
 
 	/// <summary>
@@ -254,18 +249,6 @@ partial class SceneCompiler
 		}
 
 		return flipped;
-	}
-
-	static Vector3[] Transformed( IEnumerable<Vector3> points, in Transform transform )
-	{
-		var world = new List<Vector3>();
-
-		foreach ( var point in points )
-		{
-			world.Add( transform.PointToWorld( point ) );
-		}
-
-		return [.. world];
 	}
 
 	static Vector3[] Transformed( Vector3[] points, in Transform transform )
