@@ -196,18 +196,17 @@ internal static partial class SceneCompiler
 
 		session.Phase( "Building models" );
 
-		var fragments = new AggregateFragmentInfo[plans.Length][];
-		var models = new Model[plans.Length];
+		var aggregates = new (Model Model, List<AggregateFragmentInfo> Fragments)[plans.Length];
 
 		for ( int i = 0; i < plans.Length; i++ )
 		{
-			var build = Build( plans[i], statistics );
+			var (model, fragments) = Build( plans[i], statistics );
 
-			fragments[i] = build.Fragments;
-			models[i] = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", build.Model.SaveToVmdl() ) );
-			if ( !models[i].IsValid() || models[i].IsError )
+			model = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", model.SaveToVmdl() ) );
+			if ( !model.IsValid() || model.IsError )
 				throw new InvalidOperationException( $"Could not load compiled aggregate model {i}." );
 
+			aggregates[i] = (model, fragments);
 			await Step( i + 1, plans.Length );
 		}
 
@@ -275,7 +274,7 @@ internal static partial class SceneCompiler
 					go.LocalTransform = plans[i].Transform;
 
 					var model = go.AddComponent<ModelRenderer>();
-					model.Model = models[i];
+					model.Model = aggregates[i].Model;
 					model.Tint = plans[i].Tint;
 
 					continue;
@@ -284,9 +283,9 @@ internal static partial class SceneCompiler
 				go.Name = $"Aggregate {i}";
 
 				var renderer = go.AddComponent<AggregateRenderer>();
-				renderer.Model = models[i];
+				renderer.Model = aggregates[i].Model;
 				renderer.Tint = plans[i].Tint;
-				renderer.Fragments = fragments[i].ToList();
+				renderer.Fragments = aggregates[i].Fragments;
 			}
 
 			for ( int i = 0; i < collision.Count; i++ )

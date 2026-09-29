@@ -110,11 +110,6 @@ partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// A compiled model whose draw calls all share a material. Fragment <c>i</c> draws draw call <c>i</c>.
-	/// </summary>
-	internal sealed record AggregateBuild( Model Model, AggregateFragmentInfo[] Fragments );
-
-	/// <summary>
 	/// Everything the compile pulled out of the scene, ready to be turned into resources.
 	/// </summary>
 	internal sealed record CompilePlan( AggregatePlan[] Aggregates, CollisionChunk[] Collision, CollisionShape[] Shapes );
@@ -666,7 +661,7 @@ partial class SceneCompiler
 	/// Concatenate a plan's chunks into the single mesh an aggregate draws from, giving each chunk
 	/// its own draw call so it can be culled and drawn as a fragment.
 	/// </summary>
-	static AggregateBuild Build( AggregatePlan plan, SceneCompileStatistics statistics )
+	static (Model Model, List<AggregateFragmentInfo> Fragments) Build( AggregatePlan plan, SceneCompileStatistics statistics )
 	{
 		var material = plan.Material;
 		var chunks = plan.Chunks;
@@ -685,7 +680,7 @@ partial class SceneCompiler
 		}
 
 		var indices = new int[indexTotal];
-		var fragments = new AggregateFragmentInfo[chunks.Length];
+		var fragments = new List<AggregateFragmentInfo>( chunks.Length );
 		var bounds = chunks[0].Bounds;
 		var localBounds = chunks[0].LocalBounds;
 
@@ -696,7 +691,7 @@ partial class SceneCompiler
 			chunks[i].Indices.CopyTo( indices, indexCount );
 			indexCount += chunks[i].Indices.Length;
 
-			fragments[i] = new AggregateFragmentInfo( chunks[i].LocalBounds ) { LocalTransform = chunks[i].Transform };
+			fragments.Add( new AggregateFragmentInfo( chunks[i].LocalBounds ) { LocalTransform = chunks[i].Transform } );
 			bounds = bounds.AddBBox( chunks[i].Bounds );
 			localBounds = localBounds.AddBBox( chunks[i].LocalBounds );
 		}
@@ -779,9 +774,9 @@ partial class SceneCompiler
 		mesh.UvDensity = UvDensity( chunks, indexTotal );
 
 		if ( !plan.Translucent )
-			statistics.FragmentCount += fragments.Length;
+			statistics.FragmentCount += fragments.Count;
 
-		return new AggregateBuild( Model.Builder.AddMesh( mesh ).Create(), fragments );
+		return (Model.Builder.AddMesh( mesh ).Create(), fragments);
 	}
 
 	/// <summary>
