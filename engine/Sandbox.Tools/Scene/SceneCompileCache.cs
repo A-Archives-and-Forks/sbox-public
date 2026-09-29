@@ -324,6 +324,9 @@ internal static class SceneCompileCache
 			}
 
 			var isCompiled = runtime?["__scene_compiled"]?.GetValue<bool>() == true;
+			if ( compilation is null && runtime is not null && !isCompiled )
+				return true;
+
 			if ( runtime is null || isCompiled != (compilation is not null) )
 			{
 				if ( !asset.Compile( true ) || asset.IsCompileFailed )
