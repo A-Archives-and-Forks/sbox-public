@@ -26,12 +26,12 @@ partial class SceneCompiler
 
 		foreach ( var chunk in chunks )
 		{
-			Group( groups, chunk.Tags ).Add( chunk );
+			groups.GetOrCreate( chunk.Tags ).Add( chunk );
 		}
 
 		foreach ( var shape in shapes )
 		{
-			Group( groups, shape.Tags ).Add( shape );
+			groups.GetOrCreate( shape.Tags ).Add( shape );
 		}
 
 		var result = new List<(string, PhysicsGroupDescription)>( groups.Count );
@@ -53,17 +53,6 @@ partial class SceneCompiler
 		}
 
 		return result;
-	}
-
-	static CollisionGroup Group( Dictionary<string, CollisionGroup> groups, string tags )
-	{
-		if ( !groups.TryGetValue( tags, out var group ) )
-		{
-			group = new CollisionGroup();
-			groups[tags] = group;
-		}
-
-		return group;
 	}
 
 	/// <summary>

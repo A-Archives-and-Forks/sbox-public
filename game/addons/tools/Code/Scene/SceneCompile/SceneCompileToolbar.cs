@@ -75,9 +75,7 @@ sealed class SceneCompileToolbar : Widget
 	(string Title, string Detail, Color Color) Status()
 	{
 		if ( _session.Running )
-			return _session.Cancelling
-				? ("Cancelling", "", Theme.Blue)
-				: (_session.Status, "", Theme.Blue);
+			return (_session.Status, "", Theme.Blue);
 
 		if ( Game.IsPlaying )
 			return ("Play mode", "Stop playing before compiling the scene.", Theme.TextLight);

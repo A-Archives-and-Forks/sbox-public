@@ -370,13 +370,7 @@ partial class SceneCompiler
 	{
 		var key = new GroupKey( material, tint, tags, IsTranslucent( material ) ? transform : Transform.Zero );
 
-		if ( !groups.TryGetValue( key, out var chunks ) )
-		{
-			chunks = [];
-			groups[key] = chunks;
-		}
-
-		chunks.Add( new Chunk( vertices, indices, bounds.Transform( transform ), streams ) { Transform = transform, LocalBounds = bounds } );
+		groups.GetOrCreate( key ).Add( new Chunk( vertices, indices, bounds.Transform( transform ), streams ) { Transform = transform, LocalBounds = bounds } );
 	}
 
 	/// <summary>
