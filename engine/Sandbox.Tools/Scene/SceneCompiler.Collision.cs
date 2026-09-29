@@ -150,9 +150,6 @@ partial class SceneCompiler
 			cache[model] = local;
 		}
 
-		if ( local is null )
-			return;
-
 		foreach ( var part in local )
 		{
 			var transform = world.ToWorld( part.Transform );
@@ -179,12 +176,12 @@ partial class SceneCompiler
 	/// </summary>
 	static ModelCollisionPart[] ReadCollision( Model model )
 	{
-		if ( model.Physics is null )
-			return null;
+		if ( model.Physics is not { } physics )
+			return [];
 
 		var parts = new List<ModelCollisionPart>();
 
-		foreach ( var part in model.Physics.Parts )
+		foreach ( var part in physics.Parts )
 		{
 			var chunks = new List<CollisionChunk>();
 			var shapes = new List<CollisionShape>();
@@ -220,7 +217,7 @@ partial class SceneCompiler
 				parts.Add( new ModelCollisionPart( part.Transform, [.. chunks], [.. shapes] ) );
 		}
 
-		return parts.Count == 0 ? null : [.. parts];
+		return [.. parts];
 	}
 
 	/// <summary>
