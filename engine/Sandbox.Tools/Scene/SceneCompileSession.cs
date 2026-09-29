@@ -81,7 +81,7 @@ public sealed class SceneCompileSession
 	/// <summary>
 	/// Whether cancellation has been requested and the job has not finished yet.
 	/// </summary>
-	public bool Cancelling { get; private set; }
+	public bool Cancelling => Running && _cancel.IsCancellationRequested;
 
 	/// <summary>
 	/// Whether this session contains a completed, failed, or cancelled result.
@@ -256,9 +256,6 @@ public sealed class SceneCompileSession
 		if ( scene != Scene )
 			return;
 
-		if ( Running )
-			return;
-
 		Refresh();
 	}
 
@@ -381,7 +378,6 @@ public sealed class SceneCompileSession
 		// Lock before notifications or pumping can re-enter through another compile control.
 		ClearQueuedCompile();
 		Running = true;
-		Cancelling = false;
 		_cancel.Dispose();
 		_cancel = new();
 		_elapsed = FastTimer.StartNew();
@@ -444,22 +440,16 @@ public sealed class SceneCompileSession
 	public void RequestCancel()
 	{
 		ClearQueuedCompile();
-		CancelCompile();
+		if ( !Running || Cancelling )
+			return;
+
+		_cancel.Cancel();
+		Notify();
 	}
 
 	[EditorEvent.Hotload]
 	[Event( "app.exit" )]
 	void OnEditorReset() => RequestCancel();
-
-	void CancelCompile()
-	{
-		if ( !Running || Cancelling )
-			return;
-
-		Cancelling = true;
-		_cancel.Cancel();
-		Notify();
-	}
 
 	/// <summary>
 	/// Begin a compiler phase, recording the elapsed time of the previous phase.
@@ -536,7 +526,6 @@ public sealed class SceneCompileSession
 		}
 		_lines.Add( $"{title} in {duration.TotalSeconds:n2}s" );
 		Running = false;
-		Cancelling = false;
 
 		if ( title == "Cancelled" && _queuedScene == Scene )
 		{

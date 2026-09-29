@@ -163,20 +163,6 @@ partial class SceneCompiler
 		}
 
 		/// <summary>
-		/// Put the winding back the way round the transform left it.
-		/// </summary>
-		public void Flip( int[] indices )
-		{
-			if ( !Mirrored )
-				return;
-
-			for ( int i = 0; i + 2 < indices.Length; i += 3 )
-			{
-				(indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
-			}
-		}
-
-		/// <summary>
 		/// Move locally triangulated mesh tool vertices into world space, keeping the streams the
 		/// mesh painted.
 		/// </summary>
@@ -268,13 +254,6 @@ partial class SceneCompiler
 
 			foreach ( var submesh in submeshes )
 			{
-				var indices = submesh.Indices;
-				if ( collides && transform.Mirrored )
-				{
-					indices = [.. indices];
-					transform.Flip( indices );
-				}
-
 				// A mesh that doesn't draw never builds render vertices - it's compiled for its
 				// collision alone, which is how you'd build something like a player clip.
 				if ( visible )
@@ -290,6 +269,7 @@ partial class SceneCompiler
 
 				if ( collides )
 				{
+					var indices = transform.Mirrored ? Flipped( submesh.Indices ) : submesh.Indices;
 					collision.Add( new CollisionChunk( transform.Positions( submesh.Vertices ), indices, source.Surface ?? submesh.Material?.Surface, tags ) );
 				}
 			}
