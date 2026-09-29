@@ -2,6 +2,7 @@
 using Sandbox.ActionGraphs;
 using System;
 using System.IO;
+using System.Text.Json.Nodes;
 
 namespace Editor;
 
@@ -256,6 +257,14 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	bool unsavedChanges;
+	internal int EditVersion { get; private set; }
+	internal bool CompilationDirty { get; set; }
+
+	void MarkCompilationDirty()
+	{
+		EditVersion++;
+		CompilationDirty = true;
+	}
 
 	/// <summary>
 	/// True if this session is editing a scene opened from a mount. Mounted scenes live at a
@@ -268,6 +277,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		get => unsavedChanges && !IsMounted;
 		set
 		{
+			if ( value )
+				MarkCompilationDirty();
+
 			editedScenes.Add( this );
 
 			if ( unsavedChanges == value )
@@ -292,6 +304,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 
 		InitUndo();
+		MarkCompilationDirty();
 		Scene.Load( source );
 
 		Selection.Clear();
@@ -353,6 +366,15 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			Log.Error( $"Could not save {asset.Path}." );
 			return;
+		}
+
+		if ( !isPrefab )
+		{
+			if ( Scene.Source?.ResourcePath != asset.Path )
+				MarkCompilationDirty();
+
+			if ( CompilationDirty )
+				SceneCompileCache.WriteSetting( asset, SceneCompileCache.DirtyProperty, JsonValue.Create( true ) );
 		}
 
 		// Update this scene's path

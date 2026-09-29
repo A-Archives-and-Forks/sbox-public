@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Sandbox;
 
 namespace Editor;
@@ -110,9 +111,10 @@ internal static partial class SceneCompiler
 			if ( !scene.IsValid() || Game.IsPlaying || scene.Editor is SceneEditorSession { IsPrefabSession: true } )
 				throw new InvalidOperationException( "Stop playing and open a scene rather than a prefab before compiling." );
 
-			if ( scene.Editor is null || scene.Editor.HasUnsavedChanges )
+			if ( scene.Editor is not SceneEditorSession editor || editor.HasUnsavedChanges )
 				throw new InvalidOperationException( "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled." );
 
+			var editVersion = editor.EditVersion;
 			session.Cancel.ThrowIfCancellationRequested();
 			var sceneFolder = scene.Editor.GetSceneFolder()
 				?? throw new InvalidOperationException( "This scene has nowhere to write its compiled resources." );
@@ -130,6 +132,9 @@ internal static partial class SceneCompiler
 
 			SceneCompileCache.BeginGeneration( sources.Asset, generation );
 			result = await Run( sources.Asset, sceneFolder, compiled, sourceFile.Id, sourcePath, settings, session, generation );
+			var dirty = !scene.IsValid() || editor.EditVersion != editVersion;
+			SceneCompileCache.WriteSetting( sources.Asset, SceneCompileCache.DirtyProperty, JsonValue.Create( dirty ) );
+			editor.CompilationDirty = dirty;
 		}
 		finally
 		{

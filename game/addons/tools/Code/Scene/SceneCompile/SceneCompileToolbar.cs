@@ -95,7 +95,7 @@ sealed class SceneCompileToolbar : Widget
 			return ("Cannot compile", _session.Error, Theme.Yellow);
 
 		return _session.HasCompilation
-			? ("Previously compiled", "Play and publish use the saved bake. Compile again to apply scene, model, or settings changes.", Theme.Green)
+			? ("Previously compiled", "Compile again to include your latest changes.", Theme.Green)
 			: ("Not compiled", "Compile this scene to build its runtime geometry and collision.", Theme.Yellow);
 	}
 

@@ -44,6 +44,11 @@ internal static class SceneSource
 		if ( asset is null || !SceneCompileCache.HasCompilation( asset ) )
 			return file;
 
+		var editor = SceneEditorSession.Resolve( file );
+		if ( editor?.CompilationDirty == true
+			|| SceneCompileCache.ReadSetting( asset, SceneCompileCache.DirtyProperty )?.GetValue<bool>() != false )
+			return editor is not null ? editor.Scene.CreateSceneFile() : LoadForEditing( asset );
+
 		if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
 		{
 			Log.Error( error );
@@ -60,6 +65,9 @@ internal static class SceneSource
 	internal static bool PreparePlay( SceneEditorSession session, out SceneLoadOptions options )
 	{
 		options = null;
+		if ( session.CompilationDirty )
+			return true;
+
 		var asset = FindAsset( session.Scene.Source as SceneFile );
 		if ( asset is null || !SceneCompileCache.HasCompilation( asset ) )
 			return true;

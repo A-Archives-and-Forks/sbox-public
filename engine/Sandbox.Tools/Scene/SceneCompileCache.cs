@@ -24,6 +24,7 @@ internal static class SceneCompileCache
 	const string OwnershipFile = ".scene-compile-generation";
 	const string Ownership = "sbox-scene-compile:1";
 	const string RequiredProperty = "sceneCompileRequired";
+	internal const string DirtyProperty = "sceneCompileDirty";
 	const string GenerationProperty = "__scene_compile_generation";
 	static readonly JsonSerializerOptions JsonOptions = new( JsonSerializerOptions.Default ) { MaxDepth = 512 };
 
