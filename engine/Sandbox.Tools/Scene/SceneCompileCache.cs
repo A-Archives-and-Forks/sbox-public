@@ -17,7 +17,6 @@ namespace Editor;
 internal static class SceneCompileCache
 {
 	const int Version = 7;
-	const string Missing = "missing";
 	const string SceneJson = ".scene.json";
 	const string SceneBlob = ".scene.blob";
 	const string OwnershipFile = ".scene-compile-generation";
@@ -36,6 +35,9 @@ internal static class SceneCompileCache
 
 	static string SourcePath( Asset asset )
 	{
+		if ( asset?.AssetType?.ResourceType != typeof( SceneFile ) )
+			return null;
+
 		var source = asset.GetSourceFile( true );
 		if ( !string.IsNullOrEmpty( source )
 			&& (File.Exists( source ) || File.Exists( ManifestPath( source ) )) )
@@ -49,20 +51,24 @@ internal static class SceneCompileCache
 		return File.Exists( ManifestPath( source ) ) ? source : null;
 	}
 
-	static bool IsScene( Asset asset ) => asset?.AssetType?.FileExtension == "scene";
 	static string DataFolder( string source ) => Path.ChangeExtension( source, null ) + "_scene_data";
 	static string ManifestPath( string source ) => Path.Combine( DataFolder( source ), "compiled", ".scene-compile.json" );
 	static string MetadataPath( string source ) => source + ".meta";
-	static string OutputPath( string source, Compilation compilation, string name ) => Path.Combine( DataFolder( source ), "compiled", compilation.Generation, name );
-	static string Error( string source, string reason ) => $"Scene compilation for '{source}' {reason}. Save the scene, then use Scene > Compile Scene to update its runtime data.";
+	static string GenerationFolder( string source, string generation ) => Path.Combine( DataFolder( source ), "compiled", generation );
+	static string Error( string source, string reason ) => reason.StartsWith( "Scene compilation for ", StringComparison.Ordinal )
+		? reason
+		: $"Scene compilation for '{source}' {reason.TrimEnd( '.' )}. Save the scene, then use Scene > Compile Scene to update its runtime data.";
+
+	static bool IsReadError( Exception e ) => e is IOException or InvalidDataException or UnauthorizedAccessException
+		or JsonException or InvalidOperationException or ArgumentException or FormatException;
 
 	internal static void BeginGeneration( Asset asset, string generation )
 	{
 		if ( !Guid.TryParseExact( generation, "N", out _ ) )
 			throw new ArgumentException( "Invalid scene compilation generation.", nameof( generation ) );
 
-		var compilation = new Compilation { Generation = generation };
-		WriteAtomic( OutputPath( SourcePath( asset ), compilation, OwnershipFile ), Encoding.UTF8.GetBytes( Ownership ) );
+		var source = SourcePath( asset ) ?? throw new InvalidOperationException( "Scene compilation requires a saved source scene." );
+		WriteAtomic( Path.Combine( GenerationFolder( source, generation ), OwnershipFile ), Encoding.UTF8.GetBytes( Ownership ) );
 	}
 
 	internal static void DiscardGeneration( string source, string generation )
@@ -70,8 +76,7 @@ internal static class SceneCompileCache
 		if ( !Guid.TryParseExact( generation, "N", out _ ) )
 			throw new ArgumentException( "Invalid scene compilation generation.", nameof( generation ) );
 
-		var marker = OutputPath( source, new Compilation { Generation = generation }, OwnershipFile );
-		var folder = Path.GetDirectoryName( marker );
+		var folder = GenerationFolder( source, generation );
 
 		try
 		{
@@ -79,16 +84,8 @@ internal static class SceneCompileCache
 				return;
 
 			// A failed rollback may still leave this generation selected. Never delete its data.
-			var manifest = ManifestPath( source );
-			if ( File.Exists( manifest ) )
-			{
-				var current = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( manifest ), JsonOptions )
-					?? throw new InvalidDataException( "The scene compilation manifest is invalid." );
-				if ( !Guid.TryParseExact( current.Generation, "N", out _ ) )
-					throw new InvalidDataException( "The scene compilation manifest has an invalid generation." );
-				if ( current.Generation.Equals( generation, StringComparison.OrdinalIgnoreCase ) )
-					return;
-			}
+			if ( ReadManifest( source )?.Generation.Equals( generation, StringComparison.OrdinalIgnoreCase ) == true )
+				return;
 
 			DiscardOwnedGeneration( folder );
 		}
@@ -131,19 +128,14 @@ internal static class SceneCompileCache
 
 		try
 		{
-			var manifest = ManifestPath( source );
-			Compilation current = null;
-			if ( !retired || File.Exists( manifest ) )
-			{
-				current = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( manifest ), JsonOptions );
-				if ( current is null || !Guid.TryParseExact( current.Generation, "N", out _ ) )
-					throw new InvalidDataException( "The scene compilation manifest has an invalid generation." );
-			}
-
 			if ( !Directory.Exists( folder ) )
 				return;
 
-			foreach ( var directory in Directory.GetDirectories( folder ) )
+			var current = ReadManifest( source );
+			if ( current is null && !retired )
+				throw new InvalidDataException( "The scene compilation manifest is missing." );
+
+			foreach ( var directory in Directory.EnumerateDirectories( folder ) )
 			{
 				var generation = Path.GetFileName( directory );
 				if ( !Guid.TryParseExact( generation, "N", out _ )
@@ -191,9 +183,6 @@ internal static class SceneCompileCache
 			return false;
 
 		var source = sceneFolder.FullName[..^"_scene_data".Length] + ".scene";
-		if ( !File.Exists( ManifestPath( source ) ) )
-			return false;
-
 		var compilation = ReadCompilation( source );
 		if ( compilation is null )
 			return false;
@@ -254,7 +243,7 @@ internal static class SceneCompileCache
 			// Only an actual compiled marker proves history when the data folder has been deleted.
 			return ReadCompiledJson( source, out _ )?["__scene_compiled"]?.GetValue<bool>() == true;
 		}
-		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or FormatException )
+		catch ( Exception e ) when ( IsReadError( e ) )
 		{
 			Log.Warning( $"Cannot read ordinary compiled scene '{source}': {e.Message}. Recompile it from source." );
 			return false;
@@ -279,7 +268,7 @@ internal static class SceneCompileCache
 
 	internal static JsonNode ReadSetting( Asset asset, string name )
 	{
-		var source = IsScene( asset ) ? SourcePath( asset ) : null;
+		var source = SourcePath( asset );
 		if ( string.IsNullOrEmpty( source ) )
 			throw new InvalidDataException( "Scene compilation settings require a saved source scene." );
 
@@ -288,7 +277,7 @@ internal static class SceneCompileCache
 
 	internal static void WriteSetting( Asset asset, string name, JsonNode value )
 	{
-		var source = IsScene( asset ) ? SourcePath( asset ) : null;
+		var source = SourcePath( asset );
 		if ( string.IsNullOrEmpty( source ) || !File.Exists( source ) )
 			throw new InvalidDataException( "Scene compilation settings require a saved source scene." );
 
@@ -306,15 +295,15 @@ internal static class SceneCompileCache
 	/// </summary>
 	internal static bool HasCompilation( Asset asset )
 	{
-		if ( !IsScene( asset ) || string.IsNullOrEmpty( SourcePath( asset ) ) )
+		var source = SourcePath( asset );
+		if ( string.IsNullOrEmpty( source ) )
 			return false;
 
-		var source = SourcePath( asset );
 		try
 		{
 			return ReadCompilation( source ) is not null;
 		}
-		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or FormatException )
+		catch ( Exception e ) when ( IsReadError( e ) )
 		{
 			// Route unreadable output through ValidateOutput rather than silently loading it.
 			Log.Warning( Error( source, e.Message ) );
@@ -328,27 +317,80 @@ internal static class SceneCompileCache
 	internal static bool ValidateOutput( Asset asset, out string error )
 	{
 		error = null;
-		return !IsScene( asset ) || string.IsNullOrEmpty( SourcePath( asset ) )
-			|| TryRead( SourcePath( asset ), out _, out error, requireCompiled: true );
+		var source = SourcePath( asset );
+		if ( string.IsNullOrEmpty( source ) )
+			return true;
+
+		if ( !TryRead( source, out var compilation, out error ) )
+			return false;
+
+		try
+		{
+			JsonObject runtime;
+			byte[] data;
+			try
+			{
+				runtime = ReadCompiledJson( source, out data );
+			}
+			catch ( Exception e ) when ( compilation is null && IsReadError( e ) )
+			{
+				Log.Warning( $"Rebuilding unreadable runtime scene '{source}': {e.Message}" );
+				runtime = null;
+				data = null;
+			}
+
+			var isCompiled = runtime?["__scene_compiled"]?.GetValue<bool>() == true;
+			if ( runtime is null || isCompiled != (compilation is not null) )
+			{
+				if ( !asset.Compile( true ) || asset.IsCompileFailed )
+					throw new InvalidDataException( "could not regenerate its runtime .scene_c" );
+
+				runtime = ReadCompiledJson( source, out data );
+			}
+
+			RequireRuntime( source, compilation, runtime, data );
+			return true;
+		}
+		catch ( Exception e ) when ( IsReadError( e ) )
+		{
+			error = Error( source, e.Message );
+			return false;
+		}
 	}
 
-	static Compilation ReadCompilation( string source )
+	static Compilation ReadManifest( string source )
 	{
 		var manifest = ManifestPath( source );
 		if ( !File.Exists( manifest ) )
 			return null;
 
-		var compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( manifest ), JsonOptions );
-		if ( compilation is null || compilation.Version != Version || !Guid.TryParseExact( compilation.Generation, "N", out _ )
+		using var stream = File.OpenRead( manifest );
+		var compilation = JsonSerializer.Deserialize<Compilation>( stream, JsonOptions );
+		if ( compilation is null || !Guid.TryParseExact( compilation.Generation, "N", out _ ) )
+			throw new InvalidDataException( Error( source, "has an invalid manifest" ) );
+
+		return compilation;
+	}
+
+	static Compilation ReadCompilation( string source )
+	{
+		var compilation = ReadManifest( source );
+		if ( compilation is null )
+			return null;
+
+		var invalidChars = Path.GetInvalidFileNameChars();
+		if ( compilation.Version != Version || compilation.SceneId == Guid.Empty
 			|| compilation.Outputs is null
 			|| !compilation.Outputs.ContainsKey( SceneJson ) || !compilation.Outputs.ContainsKey( SceneBlob )
-			|| compilation.Outputs.Any( x => Path.GetFileName( x.Key ) != x.Key || x.Value == Missing ) )
-			throw new InvalidDataException( "has an invalid or incompatible manifest" );
+			|| compilation.Outputs.Any( x => x.Key is "" or "." or ".." || x.Key.IndexOfAny( invalidChars ) >= 0
+				|| x.Value is not { Length: 64 } || !x.Value.All( char.IsAsciiHexDigit ) ) )
+			throw new InvalidDataException( Error( source, "has an invalid or incompatible manifest" ) );
 
-		if ( compilation.Outputs.Keys.Any( name => !File.Exists( OutputPath( source, compilation, name ) ) ) )
+		var folder = GenerationFolder( source, compilation.Generation );
+		if ( compilation.Outputs.Keys.Any( name => !File.Exists( Path.Combine( folder, name ) ) ) )
 		{
 			if ( !File.Exists( source ) )
-				throw new InvalidDataException( "is missing generated data and its editable source" );
+				throw new InvalidDataException( Error( source, "is missing generated data and its editable source" ) );
 
 			return null;
 		}
@@ -356,7 +398,7 @@ internal static class SceneCompileCache
 		return compilation;
 	}
 
-	static bool TryRead( string source, out Compilation compilation, out string error, bool requireCompiled = false )
+	static bool TryRead( string source, out Compilation compilation, out string error )
 	{
 		compilation = null;
 		error = null;
@@ -364,58 +406,49 @@ internal static class SceneCompileCache
 		try
 		{
 			compilation = ReadCompilation( source );
-			if ( compilation is not null )
-			{
-				foreach ( var (name, hash) in compilation.Outputs )
-				{
-					if ( OutputHash( OutputPath( source, compilation, name ) ) != hash )
-						throw new InvalidDataException( $"is missing or has changed generated data '{name}'" );
-				}
-
-				RequireSceneIdentity( source, compilation.SceneId );
-			}
-
-			if ( !requireCompiled || compilation is null && !HasHistory( source ) && File.Exists( CompiledPath( source ) ) )
-				return true;
-
-			var runtime = ReadCompiledJson( source, out var data );
-			if ( runtime is null || (runtime["__scene_compiled"]?.GetValue<bool>() == true) != (compilation is not null) )
-			{
-				var asset = AssetSystem.FindByPath( source );
-				if ( asset is null || !asset.Compile( true ) || asset.IsCompileFailed )
-					throw new InvalidDataException( "could not regenerate its runtime .scene_c" );
-
-				runtime = ReadCompiledJson( source, out data );
-			}
-
 			if ( compilation is null )
-			{
-				if ( runtime is null || runtime["__scene_compiled"]?.GetValue<bool>() == true
-					|| !string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
-					throw new InvalidDataException( "could not restore its editable runtime scene" );
-
-				RequireSceneIdentity( source, runtime["__guid"]?.GetValue<Guid>() ?? Guid.Empty );
 				return true;
+
+			var folder = GenerationFolder( source, compilation.Generation );
+			foreach ( var (name, hash) in compilation.Outputs )
+			{
+				if ( OutputHash( Path.Combine( folder, name ) ) != hash )
+					throw new InvalidDataException( $"is missing or has changed generated data '{name}'" );
 			}
 
-			if ( runtime?[GenerationProperty]?.GetValue<string>() != compilation.Generation
-				|| runtime["__guid"]?.GetValue<Guid>() != compilation.SceneId
-				|| runtime["__scene_compiled"]?.GetValue<bool>() != true
-				|| !string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
-				throw new InvalidDataException( "is missing its matching runtime .scene_c" );
-
-			var blob = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
-			if ( Convert.ToHexString( SHA256.HashData( blob ) ) != compilation.Outputs[SceneBlob] )
-				throw new InvalidDataException( "has runtime binary data that does not match its compilation" );
-
+			RequireSceneIdentity( source, compilation.SceneId );
 			return true;
 		}
-		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or FormatException )
+		catch ( Exception e ) when ( IsReadError( e ) )
 		{
 			compilation = null;
-			error = e.Message.StartsWith( "Scene compilation for ", StringComparison.Ordinal ) ? e.Message : Error( source, e.Message.TrimEnd( '.' ) );
+			error = Error( source, e.Message );
 			return false;
 		}
+	}
+
+	static void RequireRuntime( string source, Compilation compilation, JsonObject runtime, byte[] data )
+	{
+		if ( runtime is null || !string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
+			throw new InvalidDataException( Error( source, "has no usable runtime .scene_c" ) );
+
+		var isCompiled = runtime["__scene_compiled"]?.GetValue<bool>() == true;
+		if ( compilation is null )
+		{
+			if ( isCompiled )
+				throw new InvalidDataException( Error( source, "could not restore its editable runtime scene" ) );
+
+			RequireSceneIdentity( source, (runtime["__guid"] ?? runtime["Id"])?.GetValue<Guid>() ?? Guid.Empty );
+			return;
+		}
+
+		if ( !isCompiled || runtime[GenerationProperty]?.GetValue<string>() != compilation.Generation
+			|| runtime["__guid"]?.GetValue<Guid>() != compilation.SceneId )
+			throw new InvalidDataException( Error( source, "is missing its matching runtime .scene_c" ) );
+
+		var blob = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
+		if ( Convert.ToHexString( SHA256.HashData( blob ) ) != compilation.Outputs[SceneBlob] )
+			throw new InvalidDataException( Error( source, "has runtime binary data that does not match its compilation" ) );
 	}
 
 	/// <summary>
@@ -451,21 +484,25 @@ internal static class SceneCompileCache
 			return true;
 		}
 
+		var relativeFolder = GenerationFolder( context.RelativePath, compilation.Generation );
 		foreach ( var name in compilation.Outputs.Keys )
 		{
 			// Compiled resources live in GAME, while AddCompileReference records CONTENT inputs.
 			// Register them as runtime resources rather than nonexistent source-side binary files.
 			if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
 			{
-				var resource = Path.Combine( DataFolder( context.RelativePath ), "compiled", compilation.Generation, name[..^2] );
+				var resource = Path.Combine( relativeFolder, name[..^2] );
 				context.AddRuntimeReference( resource.NormalizeFilename( false ) );
 			}
 		}
 
-		context.AddCompileReference( OutputPath( source, compilation, SceneJson ) );
-		context.AddCompileReference( OutputPath( source, compilation, SceneBlob ) );
-		var jsonBytes = File.ReadAllBytes( OutputPath( source, compilation, SceneJson ) );
-		blob = File.ReadAllBytes( OutputPath( source, compilation, SceneBlob ) );
+		var folder = GenerationFolder( source, compilation.Generation );
+		var jsonPath = Path.Combine( folder, SceneJson );
+		var blobPath = Path.Combine( folder, SceneBlob );
+		context.AddCompileReference( jsonPath );
+		context.AddCompileReference( blobPath );
+		var jsonBytes = File.ReadAllBytes( jsonPath );
+		blob = File.ReadAllBytes( blobPath );
 		if ( Convert.ToHexString( SHA256.HashData( jsonBytes ) ) != compilation.Outputs[SceneJson]
 			|| Convert.ToHexString( SHA256.HashData( blob ) ) != compilation.Outputs[SceneBlob] )
 		{
@@ -473,7 +510,8 @@ internal static class SceneCompileCache
 			return false;
 		}
 
-		var runtime = JsonNode.Parse( jsonBytes, default, new JsonDocumentOptions { MaxDepth = 512 } );
+		var runtime = JsonNode.Parse( jsonBytes, default, new JsonDocumentOptions { MaxDepth = 512 } ) as JsonObject
+			?? throw new InvalidDataException( Error( source, "has invalid baked scene data" ) );
 		var assets = new Dictionary<Guid, Asset>();
 		foreach ( var asset in AssetSystem.All )
 			assets.TryAdd( asset.Guid, asset );
@@ -519,9 +557,6 @@ internal static class SceneCompileCache
 
 	static string OutputHash( string path )
 	{
-		if ( !File.Exists( path ) )
-			return Missing;
-
 		using var stream = File.OpenRead( path );
 		return Convert.ToHexString( SHA256.HashData( stream ) );
 	}
@@ -549,7 +584,7 @@ internal static class SceneCompileCache
 		}
 	}
 
-	static void RestoreMetadata( string source, byte[] previous, byte[] written, params string[] properties )
+	static void RestoreSettings( string source, byte[] previous, byte[] written )
 	{
 		var current = ReadMetadataBytes( source );
 		if ( current is null )
@@ -557,28 +592,32 @@ internal static class SceneCompileCache
 
 		if ( current.AsSpan().SequenceEqual( written ) )
 		{
-			if ( previous is null )
-				File.Delete( MetadataPath( source ) );
-			else
-				WriteAtomic( MetadataPath( source ), previous );
+			RestoreFile( MetadataPath( source ), previous );
 			return;
 		}
 
+		const string property = SceneCompilerSettings.MetadataProperty;
 		var metadata = ReadMetadata( current );
-		var updated = ReadMetadata( written );
-		var original = ReadMetadata( previous );
-		foreach ( var property in properties )
-		{
-			if ( metadata.ContainsKey( property ) != updated.ContainsKey( property )
-				|| !JsonNode.DeepEquals( metadata[property], updated[property] ) )
-				continue;
+		if ( !JsonNode.DeepEquals( metadata[property], ReadMetadata( written )[property] ) )
+			return;
 
-			if ( original.TryGetPropertyValue( property, out var value ) )
-				metadata[property] = value?.DeepClone();
-			else
-				metadata.Remove( property );
-		}
+		if ( ReadMetadata( previous ).TryGetPropertyValue( property, out var value ) )
+			metadata[property] = value?.DeepClone();
+		else
+			metadata.Remove( property );
 		WriteAtomic( MetadataPath( source ), JsonSerializer.SerializeToUtf8Bytes( metadata, JsonOptions ) );
+	}
+
+	static void RestoreOutput( string manifest, byte[] previousManifest, string compiled, byte[] previousCompiled )
+	{
+		try
+		{
+			RestoreFile( manifest, previousManifest );
+		}
+		finally
+		{
+			RestoreFile( compiled, previousCompiled );
+		}
 	}
 
 	static void RestoreFile( string path, byte[] previous )
@@ -591,10 +630,10 @@ internal static class SceneCompileCache
 
 	internal static void ClearCompilation( Asset asset, Guid sceneId )
 	{
-		if ( !IsScene( asset ) || string.IsNullOrEmpty( SourcePath( asset ) ) )
+		var source = SourcePath( asset );
+		if ( string.IsNullOrEmpty( source ) )
 			return;
 
-		var source = SourcePath( asset );
 		if ( !HasHistory( source ) )
 			return;
 
@@ -613,9 +652,8 @@ internal static class SceneCompileCache
 				throw new InvalidOperationException( $"Could not restore '{asset.Path}' to an ordinary runtime scene. The previous compilation has been preserved." );
 
 			RequireSceneIdentity( source, sceneId );
-			var runtime = ReadCompiledJson( source, out _ );
-			if ( runtime?["__guid"]?.GetValue<Guid>() != sceneId || runtime["__scene_compiled"]?.GetValue<bool>() == true )
-				throw new InvalidDataException( $"'{asset.Path}' still contains compiled scene data." );
+			var runtime = ReadCompiledJson( source, out var data );
+			RequireRuntime( source, null, runtime, data );
 
 			success = true;
 		}
@@ -623,8 +661,7 @@ internal static class SceneCompileCache
 		{
 			if ( !success )
 			{
-				RestoreFile( manifest, previous );
-				RestoreFile( compiled, previousCompiled );
+				RestoreOutput( manifest, previous, compiled, previousCompiled );
 			}
 		}
 
@@ -637,6 +674,9 @@ internal static class SceneCompileCache
 	/// </summary>
 	internal static void Publish( Asset asset, string source, string generation, SceneFile file, SceneCompilerSettings settings, CancellationToken cancel )
 	{
+		if ( !Guid.TryParseExact( generation, "N", out _ ) )
+			throw new ArgumentException( "Invalid scene compilation generation.", nameof( generation ) );
+
 		settings.Validate();
 		void RequireSource()
 		{
@@ -651,14 +691,14 @@ internal static class SceneCompileCache
 		RequireSource();
 
 		var compilation = new Compilation { Version = Version, SceneId = file.Id, Generation = generation, Outputs = new() };
-		var folder = Path.GetDirectoryName( OutputPath( source, compilation, SceneJson ) );
+		var folder = GenerationFolder( source, generation );
 		file.IsCompiled = true;
 		var jsonObject = file.Serialize();
 		jsonObject["__scene_compiled"] = true;
 		jsonObject[GenerationProperty] = generation;
 		var json = jsonObject.ToJsonString( JsonOptions );
-		WriteAtomic( OutputPath( source, compilation, SceneJson ), Encoding.UTF8.GetBytes( json ) );
-		WriteAtomic( OutputPath( source, compilation, SceneBlob ), file.BinaryData ?? [] );
+		WriteAtomic( Path.Combine( folder, SceneJson ), Encoding.UTF8.GetBytes( json ) );
+		WriteAtomic( Path.Combine( folder, SceneBlob ), file.BinaryData ?? [] );
 
 		foreach ( var output in Directory.EnumerateFiles( folder ) )
 			compilation.Outputs.Add( Path.GetFileName( output ), OutputHash( output ) );
@@ -688,10 +728,12 @@ internal static class SceneCompileCache
 				throw new InvalidOperationException( $"Could not compile '{asset.Path}' into its runtime .scene_c. See the resource-compiler error in the editor console. The previous compilation has been preserved." );
 
 			RequireSource();
-			if ( !TryRead( source, out var published, out var error, requireCompiled: true ) )
+			if ( !TryRead( source, out var published, out var error ) )
 				throw new InvalidDataException( error );
 			if ( published?.Generation != generation )
 				throw new InvalidDataException( Error( source, "does not select the completed generation" ) );
+			var runtime = ReadCompiledJson( source, out var data );
+			RequireRuntime( source, published, runtime, data );
 			success = true;
 		}
 		finally
@@ -700,13 +742,12 @@ internal static class SceneCompileCache
 			{
 				try
 				{
-					RestoreFile( manifest, previous );
-					RestoreFile( compiled, previousCompiled );
+					RestoreOutput( manifest, previous, compiled, previousCompiled );
 				}
 				finally
 				{
 					if ( metadataWritten )
-						RestoreMetadata( source, previousMetadata, updatedMetadata, SceneCompilerSettings.MetadataProperty );
+						RestoreSettings( source, previousMetadata, updatedMetadata );
 				}
 			}
 		}

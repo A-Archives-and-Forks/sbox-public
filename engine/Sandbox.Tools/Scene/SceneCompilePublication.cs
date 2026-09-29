@@ -29,7 +29,7 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 
 	void Capture( Asset asset )
 	{
-		if ( sourcePackage || asset?.AssetType?.FileExtension != "scene" || _scenes.ContainsKey( asset ) )
+		if ( sourcePackage || asset?.AssetType?.ResourceType != typeof( SceneFile ) || _scenes.ContainsKey( asset ) )
 			return;
 
 		if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
