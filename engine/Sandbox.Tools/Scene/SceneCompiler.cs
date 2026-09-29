@@ -66,7 +66,7 @@ internal static partial class SceneCompiler
 		}
 
 		var skipped = sources
-			.Where( x => x.Component.Active && x.SkipReason is not null )
+			.Where( x => x.Component.Active && x.SkipReason != SceneCompileSkipReason.None )
 			.Select( x => new SceneCompileSkip( x.Component, x.Label, x.SkipReason ) )
 			.ToArray();
 
@@ -336,7 +336,7 @@ internal static partial class SceneCompiler
 	}
 
 	static IEnumerable<T> Gather<T>( IEnumerable<Source> sources ) where T : Component => sources
-		.Where( x => x.SkipReason is null )
+		.Where( x => x.SkipReason == SceneCompileSkipReason.None )
 		.Select( x => x.Component )
 		.OfType<T>()
 		.Where( x => x.Active );

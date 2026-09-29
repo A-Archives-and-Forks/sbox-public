@@ -86,6 +86,7 @@ internal sealed class SceneCompilerWindow : Dialog
 		report.ItemSize = new Vector2( 0, 22 );
 		report.ItemPaint = PaintEntry;
 		report.ItemClicked = OnEntryClicked;
+		report.ItemContextMenu = OnEntryContextMenu;
 		report.Margin = 4;
 		_report = report;
 
@@ -288,15 +289,20 @@ internal sealed class SceneCompilerWindow : Dialog
 			Icon = "category"
 		} );
 
-		var groups = new Dictionary<string, Group>();
+		var groups = new Dictionary<(string Label, SceneCompileSkipReason Reason), Group>();
+		var reasons = EditorTypeLibrary.GetEnumDescription( typeof( SceneCompileSkipReason ) );
 
 		foreach ( var skip in _sources.Skipped )
 		{
-			var key = $"{skip.Label} excluded from aggregates - {skip.Reason}";
+			var key = (skip.Label, skip.Reason);
 
 			if ( !groups.TryGetValue( key, out var group ) )
 			{
-				group = new Group { Reason = key };
+				group = new Group
+				{
+					Title = $"{skip.Label} excluded from aggregates - {reasons.GetEntry( skip.Reason ).Title}",
+					Reason = skip.Reason
+				};
 				groups[key] = group;
 				_groups.Add( group );
 			}
@@ -308,7 +314,7 @@ internal sealed class SceneCompilerWindow : Dialog
 
 		if ( _session.Statistics is { } completed )
 		{
-			var timings = new Group { Reason = "compile stages" };
+			var timings = new Group { Title = "compile stages" };
 			foreach ( var stage in completed.Stages )
 				timings.Entries.Add( new Entry { Text = $"{stage.Name}: {stage.Duration.TotalSeconds:n2} s", Icon = "schedule", Indent = 20.0f } );
 			_groups.Insert( 0, timings );
@@ -359,6 +365,54 @@ internal sealed class SceneCompilerWindow : Dialog
 		{
 			Reveal( entry.Target );
 		}
+	}
+
+	void OnEntryContextMenu( object item )
+	{
+		if ( item is not Entry { Group: { } group } )
+			return;
+
+		var menu = new ContextMenu( this );
+		switch ( group.Reason )
+		{
+			case SceneCompileSkipReason.NotStatic:
+				menu.AddOption( "Make All Static", "push_pin", () => MakeStatic( group ) ).Enabled =
+					!_session.Running && !Game.IsPlaying
+					&& group.Objects.Any( x => x.IsValid() && x.Scene == _session.Scene && !x.GameObject.IsStatic );
+				break;
+		}
+
+		if ( menu.HasOptions || menu.HasMenus )
+			menu.OpenAtCursor();
+		else
+			menu.Destroy();
+	}
+
+	void MakeStatic( Group group )
+	{
+		if ( _session.Running || Game.IsPlaying
+			|| SceneEditorSession.Active is not { IsPrefabSession: false, IsMounted: false } editor
+			|| editor.Scene != _session.Scene )
+			return;
+
+		var objects = group.Objects
+			.Where( x => x.IsValid() && x.Scene == editor.Scene )
+			.Select( x => x.GameObject )
+			.Where( x => !x.IsStatic )
+			.Distinct()
+			.ToArray();
+
+		if ( objects.Length == 0 )
+			return;
+
+		using var scene = editor.Scene.Push();
+		using ( editor.UndoScope( "Make Objects Static" ).WithGameObjectChanges( objects, GameObjectUndoFlags.Properties ).Push() )
+		{
+			foreach ( var go in objects )
+				go.IsStatic = true;
+		}
+
+		_session.Refresh();
 	}
 
 	static void PaintEntry( VirtualWidget item )
@@ -420,7 +474,8 @@ internal sealed class SceneCompilerWindow : Dialog
 	/// </summary>
 	sealed class Group
 	{
-		public string Reason { get; init; }
+		public string Title { get; init; }
+		public SceneCompileSkipReason Reason { get; init; }
 		public List<Component> Objects { get; } = new();
 		public List<Entry> Entries { get; } = new();
 		public bool Open { get; set; }
@@ -431,7 +486,7 @@ internal sealed class SceneCompilerWindow : Dialog
 		/// The row that folds this group open and shut. Held onto rather than remade, so the list
 		/// keeps the item it already has laid out when the group opens.
 		/// </summary>
-		public Entry Header => _header ??= new Entry { Text = $"{Objects.Count + Entries.Count} {Reason}", Group = this };
+		public Entry Header => _header ??= new Entry { Text = $"{Objects.Count + Entries.Count} {Title}", Group = this };
 	}
 
 	/// <summary>

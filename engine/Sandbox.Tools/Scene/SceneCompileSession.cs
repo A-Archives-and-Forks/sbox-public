@@ -496,4 +496,4 @@ public sealed record SceneCompileReport( string Name, int MeshCount, int PropCou
 /// <param name="Component">The original source component, which may later be destroyed.</param>
 /// <param name="Label">The category of source geometry.</param>
 /// <param name="Reason">Why the component was excluded from compilation.</param>
-public sealed record SceneCompileSkip( Component Component, string Label, string Reason );
+public sealed record SceneCompileSkip( Component Component, string Label, SceneCompileSkipReason Reason );
