@@ -31,8 +31,8 @@ internal static partial class SceneCompiler
 	public static void ViewCompileReport() => EditorEvent.Run( "scene.compile.show-report", "Report" );
 
 	/// <summary>
-	/// Everything the active scene has to compile, and why the rest is being left alone. Null with a
-	/// reason when the scene can't be compiled at all.
+	/// Everything the active scene has to compile, and why the rest is being left alone.
+	/// Reports remain available when saving is required before compilation.
 	/// </summary>
 	internal static Sources Scan( Scene scene, out string error )
 	{
@@ -46,23 +46,19 @@ internal static partial class SceneCompiler
 
 		var sources = DiscoverSources( scene ).ToArray();
 		var hasCompileGeometry = sources.Any( x => x.NeedsCompilation );
+		var asset = scene.Source is null ? null : AssetSystem.FindByPath( scene.Source.ResourcePath );
+
 		if ( hasCompileGeometry && (scene.Editor is null || scene.Editor.HasUnsavedChanges) )
 		{
 			error = "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled.";
-			return null;
 		}
-
-		var asset = scene.Source is null ? null : AssetSystem.FindByPath( scene.Source.ResourcePath );
-		if ( hasCompileGeometry && asset is null )
+		else if ( hasCompileGeometry && asset is null )
 		{
 			error = "Save the scene before compiling it.";
-			return null;
 		}
-
-		if ( asset is not null && string.IsNullOrEmpty( asset.GetSourceFile( true ) ) )
+		else if ( asset is not null && string.IsNullOrEmpty( asset.GetSourceFile( true ) ) )
 		{
 			error = "Save a local copy of this scene before compiling it.";
-			return null;
 		}
 
 		var skipped = sources
