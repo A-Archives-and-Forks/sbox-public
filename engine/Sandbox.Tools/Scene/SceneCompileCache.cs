@@ -15,7 +15,7 @@ namespace Editor;
 /// Explicit scene compilations belong to the source asset, not to another editable scene. The manifest
 /// selects an immutable generation; source metadata retains compilation intent if generated data is deleted.
 /// </summary>
-internal static partial class SceneCompileCache
+internal static class SceneCompileCache
 {
 	const int Version = 7;
 	const string Missing = "missing";
@@ -27,76 +27,12 @@ internal static partial class SceneCompileCache
 	const string GenerationProperty = "__scene_compile_generation";
 	static readonly JsonSerializerOptions JsonOptions = new( JsonSerializerOptions.Default ) { MaxDepth = 512 };
 
-	internal sealed class Snapshot
-	{
-		public Dictionary<string, string> Inputs { get; set; } = new( StringComparer.OrdinalIgnoreCase );
-		internal JsonNode SceneData { get; init; }
-	}
-
-	internal sealed class Compilation
+	sealed class Compilation
 	{
 		public int Version { get; set; }
 		public Guid SceneId { get; set; }
 		public string Generation { get; set; }
-		public Snapshot Source { get; set; }
 		public Dictionary<string, string> Outputs { get; set; }
-	}
-
-	/// <summary>
-	/// Reuse byte fingerprints only within one synchronous validation, never across a compile or await.
-	/// </summary>
-	internal sealed class ValidationScope
-	{
-		readonly Dictionary<string, string> _files = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, string> _inputs = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, bool> _history = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, Compilation> _compilations = new( StringComparer.OrdinalIgnoreCase );
-		Dictionary<Guid, Asset> _assets;
-
-		internal string FileHash( string path )
-		{
-			path = Path.GetFullPath( path );
-			if ( !_files.TryGetValue( path, out var hash ) )
-				_files.Add( path, hash = Fingerprint( path ) );
-			return hash;
-		}
-
-		internal string InputHash( string path )
-		{
-			if ( !path.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) )
-				return FileHash( path );
-
-			path = Path.GetFullPath( path );
-			if ( !_inputs.TryGetValue( path, out var hash ) )
-				_inputs.Add( path, hash = InputFingerprint( path ) );
-			return hash;
-		}
-
-		internal Asset Find( Guid id )
-		{
-			if ( _assets is null )
-			{
-				_assets = new();
-				foreach ( var asset in AssetSystem.All )
-					_assets.TryAdd( asset.Guid, asset );
-			}
-
-			return _assets.GetValueOrDefault( id );
-		}
-
-		internal bool HasHistory( string source )
-		{
-			if ( !_history.TryGetValue( source, out var history ) )
-				_history.Add( source, history = SceneCompileCache.HasHistory( source ) );
-			return history;
-		}
-
-		internal Compilation ReadCompilation( string source )
-		{
-			if ( !_compilations.TryGetValue( source, out var compilation ) )
-				_compilations.Add( source, compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions ) );
-			return compilation;
-		}
 	}
 
 	static string SourcePath( Asset asset )
@@ -119,7 +55,6 @@ internal static partial class SceneCompileCache
 	static string ManifestPath( string source ) => Path.Combine( DataFolder( source ), "compiled", ".scene-compile.json" );
 	static string MetadataPath( string source ) => source + ".meta";
 	static string OutputPath( string source, Compilation compilation, string name ) => Path.Combine( DataFolder( source ), "compiled", compilation.Generation, name );
-	static string InputPath( string source, string name ) => Path.GetFullPath( name, Path.GetDirectoryName( source ) );
 	static string Error( string source, string reason ) => $"Scene compilation for '{source}' {reason}. Save the scene, then use Scene > Compile Scene to update its runtime data.";
 
 	internal static void BeginGeneration( Asset asset, string generation )
@@ -229,13 +164,13 @@ internal static partial class SceneCompileCache
 	/// Only compiler-owned generations are filtered. Other assets in the scene data folder remain
 	/// ordinary publishable content. Source packages also omit compiled runtime scenes.
 	/// </summary>
-	internal static bool ShouldPublishFile( string path, bool sourcePackage, ValidationScope scope = null )
+	internal static bool ShouldPublishFile( string path, bool sourcePackage )
 	{
 		if ( string.IsNullOrEmpty( path ) )
 			return true;
 
 		if ( sourcePackage && path.EndsWith( ".scene_c", StringComparison.OrdinalIgnoreCase )
-			&& File.Exists( path[..^2] ) && (scope?.HasHistory( path[..^2] ) ?? HasHistory( path[..^2] )) )
+			&& File.Exists( path[..^2] ) && HasHistory( path[..^2] ) )
 			return false;
 
 		var generationFolder = Directory.GetParent( Path.GetFullPath( path ) );
@@ -260,9 +195,7 @@ internal static partial class SceneCompileCache
 		if ( !File.Exists( ManifestPath( source ) ) )
 			return false;
 
-		var compilation = scope is null
-			? JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions )
-			: scope.ReadCompilation( source );
+		var compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions );
 		if ( compilation is null || compilation.Version != Version || compilation.Outputs is null || !Guid.TryParseExact( compilation.Generation, "N", out _ ) )
 			throw new InvalidDataException( Error( source, "has an invalid or incompatible manifest" ) );
 
@@ -374,7 +307,7 @@ internal static partial class SceneCompileCache
 	/// True when there is persisted compilation history, including a missing or damaged current compilation.
 	/// Compiled-only packaged scenes do not need their editor cache.
 	/// </summary>
-	internal static bool HasCompilation( Asset asset, ValidationScope scope = null )
+	internal static bool HasCompilation( Asset asset )
 	{
 		if ( !IsScene( asset ) || string.IsNullOrEmpty( SourcePath( asset ) ) )
 			return false;
@@ -382,61 +315,60 @@ internal static partial class SceneCompileCache
 		var source = SourcePath( asset );
 		try
 		{
-			return scope?.HasHistory( source ) ?? HasHistory( source );
+			return HasHistory( source );
 		}
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or FormatException )
 		{
-			// Route unreadable output through Validate rather than silently loading it.
+			// Route unreadable output through ValidateOutput rather than silently loading it.
 			Log.Warning( Error( source, e.Message ) );
 			return true;
 		}
 	}
 
 	/// <summary>
-	/// No compilation history is valid (ordinary source scene). Known compilations must have their complete
-	/// generation and exactly the author inputs they were built from.
+	/// Known compilations must have complete, matching output. Authoring changes do not invalidate a bake.
 	/// </summary>
-	internal static bool Validate( Asset asset, out string error, ValidationScope scope = null )
+	internal static bool ValidateOutput( Asset asset, out string error )
 	{
 		error = null;
 		return !IsScene( asset ) || string.IsNullOrEmpty( SourcePath( asset ) )
-			|| TryRead( SourcePath( asset ), out _, out error, requireCompiled: true, scope );
+			|| TryRead( SourcePath( asset ), out _, out error, requireCompiled: true );
 	}
 
-	static bool TryRead( string source, out Compilation compilation, out string error, bool requireCompiled = false, ValidationScope scope = null )
+	static bool TryRead( string source, out Compilation compilation, out string error, bool requireCompiled = false )
 	{
 		compilation = null;
 		error = null;
-		scope ??= new();
 
 		try
 		{
-			if ( !scope.HasHistory( source ) )
+			if ( !HasHistory( source ) )
 				return true;
 
 			if ( !File.Exists( ManifestPath( source ) ) )
 				throw new InvalidDataException( "is missing its generated cache" );
 
-			compilation = scope.ReadCompilation( source );
+			compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions );
 			if ( compilation is null || compilation.Version != Version || !Guid.TryParseExact( compilation.Generation, "N", out _ )
-				|| compilation.Source?.Inputs is null || compilation.Source.Inputs.Count == 0 || compilation.Outputs is null
+				|| compilation.Outputs is null
 				|| !compilation.Outputs.ContainsKey( SceneJson ) || !compilation.Outputs.ContainsKey( SceneBlob ) )
 				throw new InvalidDataException( "has an invalid or incompatible manifest" );
 
 			foreach ( var (name, hash) in compilation.Outputs )
 			{
-				if ( Path.GetFileName( name ) != name || scope.FileHash( OutputPath( source, compilation, name ) ) != hash || hash == Missing )
+				if ( Path.GetFileName( name ) != name || OutputHash( OutputPath( source, compilation, name ) ) != hash || hash == Missing )
 					throw new InvalidDataException( $"is missing or has changed generated data '{name}'" );
 			}
 
-			RequireUnchanged( source, compilation.Source, scope );
+			RequireSceneIdentity( source, compilation.SceneId );
 
 			if ( requireCompiled )
 			{
 				var runtime = ReadCompiledJson( source, out var data );
 				if ( runtime?[GenerationProperty]?.GetValue<string>() != compilation.Generation
 					|| runtime["__guid"]?.GetValue<Guid>() != compilation.SceneId
-					|| runtime["__scene_compiled"]?.GetValue<bool>() != true )
+					|| runtime["__scene_compiled"]?.GetValue<bool>() != true
+					|| !string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
 					throw new InvalidDataException( "is missing its matching runtime .scene_c" );
 
 				var blob = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
@@ -462,57 +394,40 @@ internal static partial class SceneCompileCache
 		blob = null;
 		compiled = false;
 		var source = context.AbsolutePath;
-		var validation = new ValidationScope();
-
-		if ( !TryRead( source, out var compilation, out var error, scope: validation ) )
+		if ( !TryRead( source, out var compilation, out var error ) )
 		{
 			// Saving must still produce a valid resource container. Runtime loading rejects this
 			// explicit unavailable state; failing compilation here causes endless on-demand retries.
-			var unavailable = ReadSourceJson( source ).AsObject();
-			unavailable["__scene_compiled"] = true;
-			unavailable["__scene_compile_error"] = error;
+			Log.Error( error );
+			var sourceJson = ReadSourceJson( source );
+			var unavailable = new JsonObject
+			{
+				["__guid"] = (sourceJson?["__guid"] ?? sourceJson?["Id"])?.DeepClone(),
+				["__scene_compiled"] = true,
+				["__scene_compile_error"] = error
+			};
 			json = unavailable.ToJsonString( JsonOptions );
-			context.AddCompileReference( ManifestPath( source ), optional: true );
-			context.AddCompileReference( MetadataPath( source ), optional: true );
+			blob = [];
+			compiled = true;
 			return true;
 		}
 
-		// Track the marker even for source scenes, so compiling geometry invalidates the old resource.
-		context.AddCompileReference( ManifestPath( source ), optional: true );
-		context.AddCompileReference( MetadataPath( source ), optional: true );
 		if ( compilation is null )
 			return true;
 
-		foreach ( var (name, hash) in compilation.Source.Inputs )
-		{
-			// An absent sidecar can resolve to a different mod's file in the native search path.
-			// Keep tracking its absence in the manifest, without registering a fictitious native input.
-			if ( hash == Missing || name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase )
-				|| name.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) && !File.Exists( InputPath( source, name ) ) )
-				continue;
-
-			context.AddCompileReference( InputPath( source, name ) );
-		}
-
 		foreach ( var name in compilation.Outputs.Keys )
 		{
-			// This extensionless dotfile is bookkeeping, not a compiler input. Native path
-			// symbols interpret it as an extension with an empty filename and invalidate the REDI.
-			if ( name == OwnershipFile )
-				continue;
-
 			// Compiled resources live in GAME, while AddCompileReference records CONTENT inputs.
 			// Register them as runtime resources rather than nonexistent source-side binary files.
 			if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
 			{
 				var resource = Path.Combine( DataFolder( context.RelativePath ), "compiled", compilation.Generation, name[..^2] );
 				context.AddRuntimeReference( resource.NormalizeFilename( false ) );
-				continue;
 			}
-
-			context.AddCompileReference( OutputPath( source, compilation, name ) );
 		}
 
+		context.AddCompileReference( OutputPath( source, compilation, SceneJson ) );
+		context.AddCompileReference( OutputPath( source, compilation, SceneBlob ) );
 		var jsonBytes = File.ReadAllBytes( OutputPath( source, compilation, SceneJson ) );
 		blob = File.ReadAllBytes( OutputPath( source, compilation, SceneBlob ) );
 		if ( Convert.ToHexString( SHA256.HashData( jsonBytes ) ) != compilation.Outputs[SceneJson]
@@ -523,29 +438,32 @@ internal static partial class SceneCompileCache
 		}
 
 		var runtime = JsonNode.Parse( jsonBytes, default, new JsonDocumentOptions { MaxDepth = 512 } );
-		ResolveRuntimeReferences( runtime, validation );
+		var assets = new Dictionary<Guid, Asset>();
+		foreach ( var asset in AssetSystem.All )
+			assets.TryAdd( asset.Guid, asset );
+		ResolveRuntimeReferences( runtime, assets );
 		json = runtime.ToJsonString( JsonOptions );
 		compiled = true;
 		return true;
 	}
 
-	static Asset ResolveGuidReference( JsonObject obj, ValidationScope scope )
+	static Asset ResolveGuidReference( JsonObject obj, Dictionary<Guid, Asset> assets )
 	{
 		if ( !obj.All( x => x.Key is "Id" or "Path" )
 			|| obj["Id"] is not JsonValue idValue || !idValue.TryGetValue<string>( out var idText )
 			|| !Guid.TryParse( idText, out var id ) || id == Guid.Empty )
 			return null;
 
-		return scope.Find( id )
+		return assets.GetValueOrDefault( id )
 			?? (obj["Path"] is JsonValue path && path.TryGetValue<string>( out var filename ) ? AssetSystem.FindByPath( filename ) : null)
-			?? throw new InvalidDataException( $"Author resource '{id}' could not be resolved; restore it before using Compile Scene" );
+			?? throw new InvalidDataException( $"Runtime resource '{id}' could not be resolved; restore it or compile the scene again" );
 	}
 
-	static void ResolveRuntimeReferences( JsonNode node, ValidationScope scope )
+	static void ResolveRuntimeReferences( JsonNode node, Dictionary<Guid, Asset> assets )
 	{
 		if ( node is JsonObject obj )
 		{
-			if ( ResolveGuidReference( obj, scope ) is { } reference )
+			if ( ResolveGuidReference( obj, assets ) is { } reference )
 			{
 				// ScanJson discovers runtime dependencies by path, not GUID. Supply the resolved
 				// path so GUID-only and moved resources are also included when publishing.
@@ -554,16 +472,16 @@ internal static partial class SceneCompileCache
 			}
 
 			foreach ( var child in obj )
-				ResolveRuntimeReferences( child.Value, scope );
+				ResolveRuntimeReferences( child.Value, assets );
 		}
 		else if ( node is JsonArray array )
 		{
 			foreach ( var child in array )
-				ResolveRuntimeReferences( child, scope );
+				ResolveRuntimeReferences( child, assets );
 		}
 	}
 
-	static string Fingerprint( string path )
+	static string OutputHash( string path )
 	{
 		if ( !File.Exists( path ) )
 			return Missing;
@@ -572,216 +490,11 @@ internal static partial class SceneCompileCache
 		return Convert.ToHexString( SHA256.HashData( stream ) );
 	}
 
-	static string InputFingerprint( string path )
+	static void RequireSceneIdentity( string source, Guid id )
 	{
-		if ( !path.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) )
-			return Fingerprint( path );
-
-		return MetadataFingerprint( File.Exists( path ) ? File.ReadAllBytes( path ) : null );
-	}
-
-	static string MetadataFingerprint( byte[] bytes )
-	{
-		var metadata = ReadMetadata( bytes );
-		// Asset.Publishing stores Enabled and the entire ProjectConfig under "publish".
-		// Tags and WorkshopId are discovery/upload state, not resource import inputs.
-		foreach ( var key in metadata.Select( x => x.Key ).ToArray() )
-		{
-			if ( key.Equals( "publish", StringComparison.OrdinalIgnoreCase )
-				|| key.Equals( "tags", StringComparison.OrdinalIgnoreCase )
-				|| key.Equals( "WorkshopId", StringComparison.OrdinalIgnoreCase )
-				|| key.Equals( SceneCompilerSettings.CompileOnSaveProperty, StringComparison.OrdinalIgnoreCase )
-				|| key.Equals( RequiredProperty, StringComparison.OrdinalIgnoreCase ) )
-				metadata.Remove( key );
-		}
-
-		return Convert.ToHexString( SHA256.HashData( JsonSerializer.SerializeToUtf8Bytes( Canonicalize( metadata ), JsonOptions ) ) );
-	}
-
-	static JsonNode Canonicalize( JsonNode node ) => node switch
-	{
-		JsonObject obj => new JsonObject( obj.OrderBy( x => x.Key, StringComparer.Ordinal )
-			.Select( x => KeyValuePair.Create( x.Key, Canonicalize( x.Value ) ) ) ),
-		JsonArray array => new JsonArray( array.Select( Canonicalize ).ToArray() ),
-		_ => node?.DeepClone()
-	};
-
-	/// <summary>
-	/// Discover the author graph independently of the source scene's native references: after
-	/// compilation those references describe the compiled scene and no longer include stripped props.
-	/// </summary>
-	internal static Snapshot Capture( Asset asset ) => Capture( SourcePath( asset ) );
-
-	static Snapshot Capture( string source, ValidationScope scope = null, JsonNode sceneData = null )
-	{
-		scope ??= new();
-		if ( !File.Exists( source ) )
-			throw new InvalidDataException( $"Source scene '{source}' is missing" );
-
-		var snapshot = new Snapshot { SceneData = sceneData ?? ReadSourceJson( source ) };
-		var visited = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { Path.GetFullPath( source ) };
-
-		void AddFile( string path )
-		{
-			if ( string.IsNullOrEmpty( path ) )
-				return;
-
-			path = Path.GetFullPath( path );
-			var key = Path.GetRelativePath( Path.GetDirectoryName( source ), path );
-			if ( !snapshot.Inputs.ContainsKey( key ) )
-				snapshot.Inputs.Add( key, scope.InputHash( path ) );
-		}
-
-		string Resolve( string path )
-		{
-			if ( Path.IsPathRooted( path ) )
-				return path;
-
-			return FileSystem.Mounted.GetFullPath( path );
-		}
-
-		void AddDependency( Asset dependency )
-		{
-			if ( dependency is null || dependency.IsDeleted )
-				throw new InvalidDataException( "An author dependency is missing; restore it before using Compile Scene" );
-
-			// Scene references are runtime links, not geometry inputs. Registering their
-			// sources as compile inputs creates native dependency cycles between compilations.
-			if ( IsScene( dependency ) )
-				return;
-
-			var path = dependency.GetSourceFile( true );
-			var hasSource = !dependency.IsCloud && File.Exists( path );
-			if ( !hasSource )
-				path = dependency.GetCompiledFile( true );
-
-			if ( string.IsNullOrEmpty( path ) || !File.Exists( path ) )
-				throw new InvalidDataException( $"Dependency '{dependency.Path}' has no readable file to fingerprint" );
-
-			if ( !visited.Add( Path.GetFullPath( path ) ) )
-				return;
-
-			if ( hasSource && dependency.CanRecompile && !dependency.IsCompiledAndUpToDate )
-				throw new InvalidDataException( $"Dependency '{dependency.Path}' must finish compiling before using Compile Scene" );
-
-			AddFile( path );
-			AddFile( path + ".meta" );
-			AddFile( dependency.GetCompiledFile( true ) );
-
-			if ( dependency.AssetType.IsGameResource && hasSource )
-			{
-				AddFile( path + "_d" );
-				ScanJson( path );
-			}
-
-			foreach ( var reference in dependency.GetReferences( false ) )
-				AddDependency( reference );
-
-			if ( !hasSource )
-				return;
-
-			foreach ( var reference in CompileDependencies( dependency ) )
-				AddDependency( reference );
-
-			foreach ( var input in dependency.GetInputDependencies().Concat( dependency.GetAdditionalContentFiles() ) )
-			{
-				var resolved = Resolve( input );
-				if ( string.IsNullOrEmpty( resolved ) )
-					throw new InvalidDataException( $"Cannot resolve compile input '{input}' for '{dependency.Path}'" );
-
-				AddFile( resolved );
-				if ( AssetSystem.FindByPath( input ) is { } inputAsset )
-					AddDependency( inputAsset );
-			}
-		}
-
-		void ScanNode( JsonNode node )
-		{
-			if ( node is JsonObject obj )
-			{
-				// ResourceId prefers its GUID over its path, which can still name the old location
-				// after a move. Do not fingerprint that stale path as a second dependency.
-				if ( ResolveGuidReference( obj, scope ) is { } reference )
-				{
-					AddDependency( reference );
-					return;
-				}
-
-				foreach ( var (key, child) in obj )
-				{
-					if ( key != "__type" )
-						ScanNode( child );
-				}
-			}
-			else if ( node is JsonArray array )
-			{
-				foreach ( var child in array )
-					ScanNode( child );
-			}
-			else if ( node is JsonValue scalar && scalar.TryGetValue<string>( out var path ) && !string.IsNullOrWhiteSpace( path )
-				&& !string.IsNullOrEmpty( Path.GetExtension( path ) ) )
-			{
-				if ( AssetSystem.FindByPath( path ) is { } reference )
-					AddDependency( reference );
-			}
-		}
-
-		void ScanJson( string path )
-		{
-			ScanNode( ReadSourceJson( path ) );
-		}
-
-		AddFile( source );
-		AddFile( MetadataPath( source ) );
-		AddFile( source + "_d" );
-		ScanNode( snapshot.SceneData );
-		return snapshot;
-	}
-
-	static IEnumerable<Asset> CompileDependencies( Asset asset )
-	{
-		if ( asset is not NativeAsset native )
-			return [];
-
-		var references = NativeEngine.CUtlVectorAsset.Create( 4, 4 );
-		try
-		{
-			native.native.GetAssetsIDependOn( references, false );
-			var result = new List<Asset>();
-			for ( int i = 0; i < references.Count(); i++ )
-				result.Add( AssetSystem.Get( references.Element( i ) ) );
-			return result;
-		}
-		finally
-		{
-			references.DeleteThis();
-		}
-	}
-
-	static bool IsSceneInput( string source, string name ) =>
-		name.Equals( Path.GetFileName( source ), StringComparison.OrdinalIgnoreCase )
-		|| name.Equals( Path.GetFileName( source ) + "_d", StringComparison.OrdinalIgnoreCase )
-		|| name.Equals( Path.GetFileName( MetadataPath( source ) ), StringComparison.OrdinalIgnoreCase );
-
-	static bool SceneInputsUnchanged( string source, Snapshot snapshot ) =>
-		snapshot.Inputs.Where( x => IsSceneInput( source, x.Key ) ).All( x => InputFingerprint( InputPath( source, x.Key ) ) == x.Value );
-
-	static void RequireDependenciesUnchanged( string source, Snapshot snapshot )
-	{
-		// Follow the initial scene's references even if a later save changes its dependency graph.
-		var current = Capture( source, sceneData: snapshot.SceneData );
-		if ( current.Inputs.Count != snapshot.Inputs.Count
-			|| snapshot.Inputs.Any( x => !IsSceneInput( source, x.Key )
-				&& (!current.Inputs.TryGetValue( x.Key, out var hash ) || hash != x.Value) ) )
-			throw new InvalidDataException( Error( source, "has a dependency that changed during compilation" ) );
-	}
-
-	static void RequireUnchanged( string source, Snapshot snapshot, ValidationScope scope = null )
-	{
-		var current = Capture( source, scope );
-		if ( current.Inputs.Count != snapshot.Inputs.Count
-			|| snapshot.Inputs.Any( x => !current.Inputs.TryGetValue( x.Key, out var hash ) || hash != x.Value ) )
-			throw new InvalidDataException( Error( source, "is stale because the scene, binary data, or an author dependency changed" ) );
+		var json = ReadSourceJson( source );
+		if ( id == Guid.Empty || (json?["__guid"] ?? json?["Id"])?.GetValue<Guid>() != id )
+			throw new InvalidDataException( Error( source, "does not match the saved scene's identity" ) );
 	}
 
 	static void WriteAtomic( string path, byte[] data )
@@ -840,13 +553,13 @@ internal static partial class SceneCompileCache
 			File.Delete( path );
 	}
 
-	internal static void ClearCompilation( Asset asset )
+	internal static void ClearCompilation( Asset asset, Guid sceneId )
 	{
 		if ( !HasCompilation( asset ) )
 			return;
 
 		var source = SourcePath( asset );
-		var snapshot = Capture( source );
+		RequireSceneIdentity( source, sceneId );
 		var manifest = ManifestPath( source );
 		var compiled = CompiledPath( source );
 		var previous = File.Exists( manifest ) ? File.ReadAllBytes( manifest ) : null;
@@ -865,9 +578,9 @@ internal static partial class SceneCompileCache
 			if ( !asset.Compile( true ) || asset.IsCompileFailed )
 				throw new InvalidOperationException( $"Could not restore '{asset.Path}' to an ordinary runtime scene. The previous compilation has been preserved." );
 
-			RequireUnchanged( source, snapshot );
+			RequireSceneIdentity( source, sceneId );
 			var runtime = ReadCompiledJson( source, out _ );
-			if ( runtime is null || runtime["__scene_compiled"]?.GetValue<bool>() == true )
+			if ( runtime?["__guid"]?.GetValue<Guid>() != sceneId || runtime["__scene_compiled"]?.GetValue<bool>() == true )
 				throw new InvalidDataException( $"'{asset.Path}' still contains compiled scene data." );
 
 			success = true;
@@ -895,8 +608,7 @@ internal static partial class SceneCompileCache
 	/// Publish a completed generation, then force the standard resource compiler to create .scene_c.
 	/// Roll back the selector and compiled file if compilation fails; never touch .scene or .scene_d.
 	/// </summary>
-	/// <returns>Whether the published snapshot still matches the saved scene.</returns>
-	internal static bool Publish( Asset asset, string source, string generation, SceneFile file, Snapshot snapshot, SceneCompilerSettings settings, CancellationToken cancel )
+	internal static void Publish( Asset asset, string source, string generation, SceneFile file, SceneCompilerSettings settings, CancellationToken cancel )
 	{
 		settings.Validate();
 		void RequireSource()
@@ -906,14 +618,12 @@ internal static partial class SceneCompileCache
 				|| !string.Equals( source, asset.GetSourceFile( true ), StringComparison.OrdinalIgnoreCase ) )
 				throw new InvalidDataException( Error( source, "was moved or deleted during compilation" ) );
 
-			var sourceJson = ReadSourceJson( source );
-			if ( (sourceJson?["__guid"] ?? sourceJson?["Id"])?.GetValue<Guid>() != file.Id )
-				throw new InvalidDataException( Error( source, "does not match the saved scene's identity" ) );
+			RequireSceneIdentity( source, file.Id );
 		}
 
 		RequireSource();
 
-		var compilation = new Compilation { Version = Version, SceneId = file.Id, Generation = generation, Source = snapshot, Outputs = new() };
+		var compilation = new Compilation { Version = Version, SceneId = file.Id, Generation = generation, Outputs = new() };
 		var folder = Path.GetDirectoryName( OutputPath( source, compilation, SceneJson ) );
 		file.IsCompiled = true;
 		var jsonObject = file.Serialize();
@@ -924,9 +634,7 @@ internal static partial class SceneCompileCache
 		WriteAtomic( OutputPath( source, compilation, SceneBlob ), file.BinaryData ?? [] );
 
 		foreach ( var output in Directory.EnumerateFiles( folder ) )
-			compilation.Outputs.Add( Path.GetFileName( output ), Fingerprint( output ) );
-
-		RequireDependenciesUnchanged( source, snapshot );
+			compilation.Outputs.Add( Path.GetFileName( output ), OutputHash( output ) );
 
 		var manifest = ManifestPath( source );
 		var previous = File.Exists( manifest ) ? File.ReadAllBytes( manifest ) : null;
@@ -937,13 +645,8 @@ internal static partial class SceneCompileCache
 		metadata[RequiredProperty] = true;
 		metadata[SceneCompilerSettings.MetadataProperty] = JsonSerializer.SerializeToNode( settings );
 		var updatedMetadata = JsonSerializer.SerializeToUtf8Bytes( metadata, JsonOptions );
-		compilation.Source = new Snapshot { Inputs = new( snapshot.Inputs, StringComparer.OrdinalIgnoreCase ) };
-		var metadataKey = Path.GetFileName( MetadataPath( source ) );
-		if ( snapshot.Inputs[metadataKey] == MetadataFingerprint( previousMetadata ) )
-			compilation.Source.Inputs[metadataKey] = MetadataFingerprint( updatedMetadata );
 		var metadataWritten = false;
 		var success = false;
-		var isCurrent = false;
 
 		try
 		{
@@ -959,17 +662,10 @@ internal static partial class SceneCompileCache
 				throw new InvalidOperationException( $"Could not compile '{asset.Path}' into its runtime .scene_c. See the resource-compiler error in the editor console. The previous compilation has been preserved." );
 
 			RequireSource();
-			RequireDependenciesUnchanged( source, snapshot );
-			ValidateCompilationFiles( source, compilation, cancel, new( StringComparer.OrdinalIgnoreCase ), validateInputs: false );
-			var runtime = ReadCompiledJson( source, out var data );
-			isCurrent = SceneInputsUnchanged( source, compilation.Source );
-			// A save during compilation makes the resource compiler emit an explicit unavailable
-			// scene. Retain the snapshot, but never bless that stale generation as current.
-			if ( isCurrent
-				|| runtime?["__scene_compiled"]?.GetValue<bool>() != true
-				|| runtime["__guid"]?.GetValue<Guid>() != file.Id
-				|| string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
-				ValidateRuntime( data, compilation );
+			if ( !TryRead( source, out var published, out var error, requireCompiled: true ) )
+				throw new InvalidDataException( error );
+			if ( published?.Generation != generation )
+				throw new InvalidDataException( Error( source, "does not select the completed generation" ) );
 			success = true;
 		}
 		finally
@@ -990,6 +686,5 @@ internal static partial class SceneCompileCache
 		}
 
 		PruneGenerations( source );
-		return isCurrent;
 	}
 }

@@ -37,39 +37,24 @@ internal static class SceneSource
 
 	internal static SceneFile ResolveRuntime( SceneFile file )
 	{
-		if ( file.IsSourcePreview || string.IsNullOrEmpty( file.ResourcePath ) )
+		if ( string.IsNullOrEmpty( file.ResourcePath ) )
 			return file;
 
 		var asset = FindAsset( file );
 		if ( asset is null || !SceneCompileCache.HasCompilation( asset ) )
 			return file;
 
-		var session = SceneEditorSession.All.FirstOrDefault( x => x.Scene is { IsEditor: true, Source: SceneFile source } && FindAsset( source ) == asset );
-		if ( session?.HasUnsavedChanges == true )
-			return PreviewSource( asset, session, "The scene has unsaved changes. Save and use Scene > Compile Scene to update its compiled data." );
-
-		if ( !SceneCompileCache.Validate( asset, out var error ) )
-			return PreviewSource( asset, session, error );
+		if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
+		{
+			Log.Error( error );
+			return null;
+		}
 
 		var compiledPath = asset.GetCompiledFile( true );
 		if ( string.IsNullOrEmpty( compiledPath ) )
 			compiledPath = asset.GetSourceFile( true ) + "_c";
 
 		return SceneFile.FromCompiled( asset.Path, asset.Guid, File.ReadAllBytes( compiledPath ) );
-	}
-
-	static SceneFile PreviewSource( Asset asset, SceneEditorSession session, string reason )
-	{
-		if ( session is null && !File.Exists( asset.GetSourceFile( true ) ) )
-		{
-			Log.Error( $"Cannot preview '{asset.Path}': its editable source is missing. {reason}" );
-			return null;
-		}
-
-		var file = session?.Scene.CreateSceneFile() ?? LoadForEditing( asset );
-		file.IsSourcePreview = true;
-		Log.Warning( $"Playing '{asset.Path}' uncompiled. {reason}" );
-		return file;
 	}
 
 	internal static bool PreparePlay( SceneEditorSession session, out SceneLoadOptions options )

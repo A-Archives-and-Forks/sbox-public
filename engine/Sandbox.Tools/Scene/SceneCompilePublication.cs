@@ -32,18 +32,14 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 		if ( sourcePackage || asset?.AssetType?.FileExtension != "scene" || _scenes.ContainsKey( asset ) )
 			return;
 
-		var validation = new SceneCompileCache.ValidationScope();
-		if ( !SceneCompileCache.Validate( asset, out var error, validation ) )
+		if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
 			throw new InvalidOperationException( error );
 
-		if ( !SceneCompileCache.HasCompilation( asset, validation ) )
+		if ( !SceneCompileCache.HasCompilation( asset ) )
 		{
 			_scenes.Add( asset, null );
 			return;
 		}
-
-		if ( !asset.IsCompiledAndUpToDate && !asset.Compile( false ) )
-			throw new InvalidOperationException( $"Could not compile '{asset.Path}' before collecting its compiled scene data." );
 
 		var path = asset.GetCompiledFile( true );
 		if ( string.IsNullOrEmpty( path ) )
@@ -128,14 +124,12 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 			}
 		}
 
-		// Reference discovery can compile resources. Do not reuse validation fingerprints across it.
-		var validation = new SceneCompileCache.ValidationScope();
 		foreach ( var (asset, snapshot) in _scenes )
 		{
-			if ( !SceneCompileCache.Validate( asset, out var error, validation ) )
+			if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
 				throw new InvalidOperationException( error );
 
-			if ( SceneCompileCache.HasCompilation( asset, validation ) != (snapshot is not null) )
+			if ( SceneCompileCache.HasCompilation( asset ) != (snapshot is not null) )
 				throw Changed( asset.Path );
 
 			if ( snapshot is not null )
@@ -144,21 +138,21 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 
 		foreach ( var file in files )
 		{
-			if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, false, validation ) )
+			if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, false ) )
 				throw Changed( file.Name );
 
 			// The source-package filter also identifies compiler-owned runtime output.
-			if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, true, validation ) )
+			if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, true ) )
 				ValidateFile( file.Name, file.AbsolutePath, file.Size, file.Hash );
 
 			var asset = FindScene( file );
 			if ( asset is null || _scenes.ContainsKey( asset ) )
 				continue;
 
-			if ( !SceneCompileCache.Validate( asset, out var error, validation ) )
+			if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
 				throw new InvalidOperationException( error );
 
-			if ( SceneCompileCache.HasCompilation( asset, validation ) )
+			if ( SceneCompileCache.HasCompilation( asset ) )
 				throw Changed( file.Name );
 		}
 	}

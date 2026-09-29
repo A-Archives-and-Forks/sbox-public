@@ -112,7 +112,7 @@ internal static partial class SceneCompiler
 	/// <summary>
 	/// Compile geometry in the editor, yielding between steps while preserving native thread affinity.
 	/// </summary>
-	internal static async Task<(string[] Summary, bool IsCurrent)> Compile( Sources sources, SceneCompilerSettings settings, SceneCompileSession session )
+	internal static async Task<string[]> Compile( Sources sources, SceneCompilerSettings settings, SceneCompileSession session )
 	{
 		if ( _running )
 			throw new InvalidOperationException( "A scene compile is already running." );
@@ -124,7 +124,7 @@ internal static partial class SceneCompiler
 		var sourcePath = sources.Asset.GetSourceFile( true );
 		_running = true;
 		OutputFolder = $"/compiled/{generation}";
-		(string[] Summary, bool IsCurrent) result = default;
+		string[] result = null;
 		Scene compiled = null;
 
 		try
@@ -138,7 +138,6 @@ internal static partial class SceneCompiler
 
 			session.Cancel.ThrowIfCancellationRequested();
 			session.Phase( "Copying scene" );
-			var snapshot = SceneCompileCache.Capture( sources.Asset );
 			var sourceFile = scene.CreateSceneFile();
 
 			// A game scene would also load the project's system scene and network spawns.
@@ -151,7 +150,7 @@ internal static partial class SceneCompiler
 			}
 
 			SceneCompileCache.BeginGeneration( sources.Asset, generation );
-			result = await Run( sources, compiled, sourceFile.Id, sourcePath, snapshot, session, generation );
+			result = await Run( sources, compiled, sourceFile.Id, sourcePath, session, generation );
 		}
 		finally
 		{
@@ -163,7 +162,7 @@ internal static partial class SceneCompiler
 			{
 				try
 				{
-					if ( result.Summary is null )
+					if ( result is null )
 						SceneCompileCache.DiscardGeneration( sourcePath, generation );
 				}
 				finally
@@ -177,8 +176,8 @@ internal static partial class SceneCompiler
 		return result;
 	}
 
-	static async Task<(string[] Summary, bool IsCurrent)> Run( Sources sources, Scene compiled, Guid sceneId, string sourcePath,
-		SceneCompileCache.Snapshot snapshot, SceneCompileSession session, string generation )
+	static async Task<string[]> Run( Sources sources, Scene compiled, Guid sceneId, string sourcePath,
+		SceneCompileSession session, string generation )
 	{
 		var sourceAsset = sources.Asset;
 		var sceneFolder = sources.Folder;
@@ -372,7 +371,7 @@ internal static partial class SceneCompiler
 		}
 
 		session.Phase( "Writing runtime scene" );
-		var isCurrent = SceneCompileCache.Publish( sourceAsset, sourcePath, generation, file, snapshot, Settings, session.Cancel );
+		SceneCompileCache.Publish( sourceAsset, sourcePath, generation, file, Settings, session.Cancel );
 		Settings.SaveDefaults();
 		session.Statistics = statistics;
 
@@ -384,7 +383,7 @@ internal static partial class SceneCompiler
 		if ( converted > 0 ) summary.Add( $"{converted:n0} converted {(converted == 1 ? "mesh" : "meshes")}" );
 		if ( collision.Length > 0 ) summary.Add( $"{collision.Length:n0} collision {(collision.Length == 1 ? "group" : "groups")}" );
 
-		return ([.. summary], isCurrent);
+		return [.. summary];
 	}
 
 	/// <summary>
