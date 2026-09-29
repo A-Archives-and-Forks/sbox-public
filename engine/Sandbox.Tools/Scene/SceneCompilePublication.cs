@@ -12,6 +12,7 @@ namespace Editor;
 internal sealed class SceneCompilePublication( bool sourcePackage = false )
 {
 	readonly Dictionary<Asset, FileSnapshot> _scenes = new();
+	readonly SceneCompileCache.PublishFilter _fileFilter = new();
 
 	sealed record FileSnapshot( string Name, string AbsolutePath, int Size, string Hash );
 
@@ -20,7 +21,7 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 
 	internal bool IncludeAsset( Asset asset )
 	{
-		if ( !SceneCompileCache.ShouldPublishFile( asset.AbsolutePath, sourcePackage ) )
+		if ( !_fileFilter.Includes( asset.AbsolutePath, sourcePackage ) )
 			return false;
 
 		Capture( asset );
@@ -70,7 +71,7 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 
 	internal bool IncludeFile( ProjectFile file )
 	{
-		if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, sourcePackage ) )
+		if ( !_fileFilter.Includes( file.AbsolutePath, sourcePackage ) )
 			return false;
 
 		if ( file.Contents is null && !File.Exists( file.AbsolutePath ) )
@@ -136,13 +137,14 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 				ValidateFile( snapshot.Name, snapshot.AbsolutePath, snapshot.Size, snapshot.Hash );
 		}
 
+		var fileFilter = new SceneCompileCache.PublishFilter();
 		foreach ( var file in files )
 		{
-			if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, false ) )
+			if ( !fileFilter.Includes( file.AbsolutePath, false ) )
 				throw Changed( file.Name );
 
 			// The source-package filter also identifies compiler-owned runtime output.
-			if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, true ) )
+			if ( !fileFilter.Includes( file.AbsolutePath, true ) )
 				ValidateFile( file.Name, file.AbsolutePath, file.Size, file.Hash );
 
 			var asset = FindScene( file );

@@ -155,41 +155,47 @@ internal static class SceneCompileCache
 	/// Only compiler-owned generations are filtered. Other assets in the scene data folder remain
 	/// ordinary publishable content. Source packages also omit compiled runtime scenes.
 	/// </summary>
-	internal static bool ShouldPublishFile( string path, bool sourcePackage )
+	internal sealed class PublishFilter
 	{
-		if ( string.IsNullOrEmpty( path ) )
-			return true;
+		readonly Dictionary<string, Compilation> _compilations = new( StringComparer.OrdinalIgnoreCase );
 
-		if ( sourcePackage && path.EndsWith( ".scene_c", StringComparison.OrdinalIgnoreCase )
-			&& File.Exists( path[..^2] ) && HasHistory( path[..^2] ) )
-			return false;
+		internal bool Includes( string path, bool sourcePackage )
+		{
+			if ( string.IsNullOrEmpty( path ) )
+				return true;
 
-		var generationFolder = Directory.GetParent( Path.GetFullPath( path ) );
-		if ( generationFolder?.Parent?.Parent is not { } sceneFolder
-			|| !Guid.TryParseExact( generationFolder.Name, "N", out _ )
-			|| !generationFolder.Parent.Name.Equals( "compiled", StringComparison.OrdinalIgnoreCase )
-			|| !sceneFolder.Name.EndsWith( "_scene_data", StringComparison.OrdinalIgnoreCase ) )
-			return true;
+			if ( sourcePackage && path.EndsWith( ".scene_c", StringComparison.OrdinalIgnoreCase )
+				&& File.Exists( path[..^2] ) && HasHistory( path[..^2] ) )
+				return false;
 
-		var marker = Path.Combine( generationFolder.FullName, OwnershipFile );
-		var cache = Path.Combine( generationFolder.FullName, SceneJson );
-		var owned = File.Exists( marker ) && File.ReadAllText( marker ) == Ownership;
-		if ( !owned && File.Exists( cache ) )
-			owned = ReadSourceJson( cache )?["__scene_compiled"]?.GetValue<bool>() == true;
-		if ( !owned )
-			return true;
+			var generationFolder = Directory.GetParent( Path.GetFullPath( path ) );
+			if ( generationFolder?.Parent?.Parent is not { } sceneFolder
+				|| !Guid.TryParseExact( generationFolder.Name, "N", out _ )
+				|| !generationFolder.Parent.Name.Equals( "compiled", StringComparison.OrdinalIgnoreCase )
+				|| !sceneFolder.Name.EndsWith( "_scene_data", StringComparison.OrdinalIgnoreCase ) )
+				return true;
 
-		if ( sourcePackage || Path.GetFileName( path ).StartsWith( '.' ) )
-			return false;
+			var marker = Path.Combine( generationFolder.FullName, OwnershipFile );
+			var cache = Path.Combine( generationFolder.FullName, SceneJson );
+			var owned = File.Exists( marker ) && File.ReadAllText( marker ) == Ownership;
+			if ( !owned && File.Exists( cache ) )
+				owned = ReadSourceJson( cache )?["__scene_compiled"]?.GetValue<bool>() == true;
+			if ( !owned )
+				return true;
 
-		var source = sceneFolder.FullName[..^"_scene_data".Length] + ".scene";
-		var compilation = ReadCompilation( source );
-		if ( compilation is null )
-			return false;
+			if ( sourcePackage || Path.GetFileName( path ).StartsWith( '.' ) )
+				return false;
 
-		var name = Path.GetFileName( path );
-		return generationFolder.Name.Equals( compilation.Generation, StringComparison.OrdinalIgnoreCase )
-			&& (compilation.Outputs.ContainsKey( name ) || !File.Exists( path ) && compilation.Outputs.ContainsKey( name + "_c" ));
+			var source = sceneFolder.FullName[..^"_scene_data".Length] + ".scene";
+			if ( !_compilations.TryGetValue( source, out var compilation ) )
+				_compilations.Add( source, compilation = ReadCompilation( source ) );
+			if ( compilation is null )
+				return false;
+
+			var name = Path.GetFileName( path );
+			return generationFolder.Name.Equals( compilation.Generation, StringComparison.OrdinalIgnoreCase )
+				&& (compilation.Outputs.ContainsKey( name ) || !File.Exists( path ) && compilation.Outputs.ContainsKey( name + "_c" ));
+		}
 	}
 
 	static JsonNode ReadSourceJson( string path ) => JsonNode.Parse( SceneSource.ReadJson( path ), default,
