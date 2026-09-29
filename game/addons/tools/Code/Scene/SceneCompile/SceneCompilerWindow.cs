@@ -8,14 +8,13 @@ namespace Editor;
 /// </summary>
 internal sealed class SceneCompilerWindow : Dialog
 {
-	SceneCompileSession _session;
+	readonly SceneCompileSession _session = SceneCompileSession.Current;
 
 	readonly Label _title;
 	readonly Label _status;
 	readonly Bar _bar;
 	readonly SegmentedControl _tabs;
 	readonly Dictionary<string, Widget> _pages = new();
-	readonly Widget _options;
 	readonly ListView _report;
 	readonly TextEdit _log;
 	readonly Button _compile;
@@ -27,6 +26,7 @@ internal sealed class SceneCompilerWindow : Dialog
 	string _error;
 	string[] _summary;
 
+	IReadOnlyList<string> _displayedLines;
 	int _displayedLineCount;
 	bool _wasRunning;
 
@@ -44,28 +44,22 @@ internal sealed class SceneCompilerWindow : Dialog
 	/// <summary>
 	/// Bring up the compiler for the active scene, reusing the window if it's already open.
 	/// </summary>
+	[Event( "scene.compile.show-report" )]
 	internal static void Open( string page = "Report" )
 	{
-		var session = SceneCompileSession.Current;
-		session.Refresh();
-		Open( session.HasResult ? session.CreateReportSnapshot() : session, page );
-	}
+		SceneCompileSession.Current.Refresh();
 
-	[Event( "scene.compile.show-report" )]
-	internal static void Open( SceneCompileSession session, string page )
-	{
 		if ( _current is { IsValid: true } )
 		{
-			_current.Bind( session );
 			_current.SelectPage( page );
 			_current.Show();
 			return;
 		}
 
-		_current = new SceneCompilerWindow( session, page );
+		_current = new SceneCompilerWindow( page );
 	}
 
-	SceneCompilerWindow( SceneCompileSession session, string page ) : base( EditorWindow )
+	SceneCompilerWindow( string page ) : base( EditorWindow )
 	{
 		Window.Title = "Scene Compile Report";
 		Window.SetWindowIcon( "hardware" );
@@ -100,11 +94,9 @@ internal sealed class SceneCompilerWindow : Dialog
 		_log.HorizontalScrollbarMode = ScrollbarMode.Off;
 		_log.SetStyles( "font-family: Consolas, monospace; padding: 8px;" );
 
-		_options = new SceneCompileSettingsWidget( this );
-
 		AddPage( "Report", "list", _report );
 		AddPage( "Log", "notes", _log );
-		AddPage( "Settings", "settings", _options );
+		AddPage( "Settings", "settings", new SceneCompileSettingsWidget( this ) );
 
 		ShowPage( "Report" );
 
@@ -118,7 +110,10 @@ internal sealed class SceneCompilerWindow : Dialog
 
 		_compile = footer.Add( new Button.Primary( "Compile", "hardware" ) { Clicked = OnCompile } );
 
-		Bind( session );
+		_session.Changed += OnSessionChanged;
+		_wasRunning = _session.Running;
+		BuildReport();
+		RefreshView();
 		SelectPage( page );
 
 		Show();
@@ -155,20 +150,6 @@ internal sealed class SceneCompilerWindow : Dialog
 		ShowPage( title );
 	}
 
-	void Bind( SceneCompileSession session )
-	{
-		if ( _session is not null )
-			_session.Changed -= OnSessionChanged;
-
-		_session = session;
-		_session.Changed += OnSessionChanged;
-		_wasRunning = session.Running;
-		_displayedLineCount = 0;
-		_log.Clear();
-		BuildReport();
-		RefreshView();
-	}
-
 	void OnSessionChanged()
 	{
 		if ( !IsValid )
@@ -180,15 +161,11 @@ internal sealed class SceneCompilerWindow : Dialog
 
 		if ( finished )
 		{
-			Bind( _session.CreateReportSnapshot() );
+			BuildReport();
 			SelectPage( _session.Status == "Failed" ? "Log" : "Report" );
-			return;
 		}
-
-		if ( started )
+		else if ( started )
 		{
-			_displayedLineCount = 0;
-			_log.Clear();
 			SelectPage( "Log" );
 		}
 
@@ -207,14 +184,15 @@ internal sealed class SceneCompilerWindow : Dialog
 		_bar.Visible = _session.Running;
 		_bar.Fraction = _session.Fraction;
 
-		if ( _displayedLineCount > _session.Lines.Count )
+		if ( !ReferenceEquals( _displayedLines, _session.Lines ) )
 		{
+			_displayedLines = _session.Lines;
 			_log.Clear();
 			_displayedLineCount = 0;
 		}
 
-		while ( _displayedLineCount < _session.Lines.Count )
-			_log.AppendPlainText( _session.Lines[_displayedLineCount++] );
+		while ( _displayedLineCount < _displayedLines.Count )
+			_log.AppendPlainText( _displayedLines[_displayedLineCount++] );
 
 		_log.ScrollToBottom();
 
@@ -227,38 +205,32 @@ internal sealed class SceneCompilerWindow : Dialog
 	[EditorEvent.Frame]
 	void UpdateControls()
 	{
-		if ( !IsValid || _session is null )
+		if ( !IsValid )
 			return;
 
 		if ( _session.Running )
 			_bar.Update();
 
-		var current = SceneCompileSession.Current;
-		_title.Text = _options.Visible ? current.Name : _session.Name;
-		var running = current.Running && current.Scene == _session.Scene;
-		_compile.Text = running ? current.Cancelling ? "Cancelling" : "Cancel" : "Compile";
+		_title.Text = _session.Name;
+		var running = _session.Running;
+		_compile.Text = running ? _session.Cancelling ? "Cancelling" : "Cancel" : "Compile";
 		_compile.Icon = running ? "close" : "hardware";
 		_compile.Tint = running ? Theme.ButtonBackground : Theme.Primary;
-		_compile.Enabled = running ? !current.Cancelling : current.Scene == _session.Scene && current.CanCompile;
+		_compile.Enabled = running ? !_session.Cancelling : _session.CanCompile;
 	}
 
 	async void OnCompile()
 	{
-		var current = SceneCompileSession.Current;
-		if ( current.Scene != _session.Scene )
-			return;
-
-		if ( current.Running )
+		if ( _session.Running )
 		{
-			current.RequestCancel();
+			_session.RequestCancel();
 			return;
 		}
 
-		if ( !current.CanCompile )
+		if ( !_session.CanCompile )
 			return;
 
-		Bind( current );
-		await current.StartAsync();
+		await _session.StartAsync();
 	}
 
 	/// <summary>

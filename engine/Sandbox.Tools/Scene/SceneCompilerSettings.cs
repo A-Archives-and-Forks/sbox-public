@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Editor;
 
 /// <summary>
-/// An immutable scene compile recipe. Source metadata owns it; editor cookies only seed new recipes.
+/// Immutable scene compile settings, stored in source metadata with defaults from editor cookies.
 /// </summary>
 internal sealed record SceneCompilerSettings
 {
@@ -27,7 +27,7 @@ internal sealed record SceneCompilerSettings
 	{
 		var metadata = asset is null ? null : SceneCompileCache.ReadSetting( asset, MetadataProperty );
 		var settings = metadata is null ? LoadDefaults() : metadata.Deserialize<SceneCompilerSettings>()
-			?? throw new InvalidDataException( "Scene compile settings must contain a recipe." );
+			?? throw new InvalidDataException( "Invalid scene compile settings." );
 		settings.Validate();
 		return settings;
 	}
@@ -46,7 +46,7 @@ internal sealed record SceneCompilerSettings
 	}
 
 	/// <summary>
-	/// Remember the last successful recipe as the default for new scenes.
+	/// Remember the last successful compile settings as the defaults for new scenes.
 	/// </summary>
 	public void SaveDefaults()
 	{

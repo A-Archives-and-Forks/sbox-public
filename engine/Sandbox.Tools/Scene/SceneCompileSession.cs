@@ -15,9 +15,9 @@ public sealed class SceneCompileSession
 	/// <summary>
 	/// The shared editor compile job, independent of any toolbar, popup, or report window.
 	/// </summary>
-	public static SceneCompileSession Current { get; } = new( followActiveScene: true );
+	public static SceneCompileSession Current { get; } = new();
 
-	readonly List<string> _lines = new();
+	List<string> _lines = new();
 	readonly List<SceneCompileStage> _stages = new();
 	SceneCompilerSettings _settings = new();
 	SceneCompiler.Sources _sources;
@@ -123,14 +123,14 @@ public sealed class SceneCompileSession
 	public event Action Changed;
 
 	/// <summary>
-	/// Whether the selected saved scene can start a compile with the current draft recipe.
+	/// Whether the selected saved scene can start a compile with the current settings.
 	/// </summary>
 	public bool CanCompile => !Running && _sources?.Asset is not null
 		&& _settingsError is null && _scanError is null && EligibilityError() is null;
 
 	/// <summary>
 	/// An extra aggregate's cost in fragments. Higher values favor fewer, larger aggregates.
-	/// Changes affect the draft recipe and are saved only when compiling.
+	/// Changes are saved only when compiling.
 	/// </summary>
 	/// <exception cref="InvalidDataException">The value is not finite and positive.</exception>
 	/// <exception cref="InvalidOperationException">A compile is running.</exception>
@@ -142,7 +142,7 @@ public sealed class SceneCompileSession
 
 	/// <summary>
 	/// The maximum geometry chunk size before subdivision.
-	/// Changes affect the draft recipe and are saved only when compiling.
+	/// Changes are saved only when compiling.
 	/// </summary>
 	/// <exception cref="InvalidDataException">The value is not finite and positive.</exception>
 	/// <exception cref="InvalidOperationException">A compile is running.</exception>
@@ -153,7 +153,7 @@ public sealed class SceneCompileSession
 	}
 
 	/// <summary>
-	/// Reset the draft recipe to built-in defaults without saving it.
+	/// Reset compile settings to built-in defaults without saving them.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">A compile is running.</exception>
 	public void ResetSettings() => Settings = new();
@@ -164,7 +164,7 @@ public sealed class SceneCompileSession
 		set
 		{
 			if ( Running )
-				throw new InvalidOperationException( "Cannot change the recipe while compiling." );
+				throw new InvalidOperationException( "Cannot change settings while compiling." );
 
 			ArgumentNullException.ThrowIfNull( value );
 			value.Validate();
@@ -174,11 +174,7 @@ public sealed class SceneCompileSession
 		}
 	}
 
-	SceneCompileSession( bool followActiveScene = false )
-	{
-		if ( followActiveScene )
-			EditorEvent.Register( this );
-	}
+	SceneCompileSession() => EditorEvent.Register( this );
 
 	[EditorEvent.Frame]
 	void FollowActiveScene()
@@ -223,7 +219,7 @@ public sealed class SceneCompileSession
 		HasResult = false;
 		_resultReport = null;
 		Fraction = 0;
-		_lines.Clear();
+		_lines = new();
 		_stages.Clear();
 	}
 
@@ -361,7 +357,7 @@ public sealed class SceneCompileSession
 			Finish( "Failed" );
 
 			if ( !enteredCompiler )
-				EditorEvent.Run( "scene.compile.show-report", CreateReportSnapshot(), "Report" );
+				EditorEvent.Run( "scene.compile.show-report", "Report" );
 		}
 	}
 
@@ -457,8 +453,7 @@ public sealed class SceneCompileSession
 		_lines.Add( $"{title} in {duration.TotalSeconds:n2}s" );
 		Running = false;
 
-		// The callback owns a snapshot: changing the active scene must not redirect an old toast.
-		var report = CreateReportSnapshot();
+		var name = Name;
 		var detail = title switch
 		{
 			"Done" => string.Join( "\n", summary ?? [] ),
@@ -466,36 +461,7 @@ public sealed class SceneCompileSession
 			_ => "The previous compiled scene is unchanged."
 		};
 		Notify();
-		EditorEvent.Run( "scene.compile.finished", report, detail,
-			(Action)(() => EditorEvent.Run( "scene.compile.show-report", report, title == "Failed" ? "Log" : "Report" )) );
-	}
-
-	/// <summary>
-	/// Copy report state into a detached session that does not follow active-scene changes.
-	/// Component references still identify the original source objects for click-to-reveal.
-	/// </summary>
-	/// <returns>A detached copy for displaying the retained report and log.</returns>
-	public SceneCompileSession CreateReportSnapshot()
-	{
-		var report = new SceneCompileSession
-		{
-			Scene = Scene,
-			Name = Name,
-			_path = _path,
-			_settings = _settings,
-			_settingsError = _settingsError,
-			_scanError = _scanError,
-			_failure = _failure,
-			_status = _status,
-			_sourceReport = Report,
-			_resultReport = Report,
-			Summary = Summary,
-			Statistics = Statistics,
-			HasResult = HasResult,
-			Fraction = Fraction
-		};
-		report._lines.AddRange( _lines );
-		return report;
+		EditorEvent.Run( "scene.compile.finished", name, title, detail );
 	}
 
 	void Notify()

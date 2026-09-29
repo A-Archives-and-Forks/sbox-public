@@ -5,7 +5,7 @@ using Sandbox;
 namespace Editor;
 
 /// <summary>
-/// Edits the shared draft recipe.
+/// Edits scene compile settings.
 /// </summary>
 internal sealed class SceneCompileSettingsWidget : Widget
 {
@@ -71,7 +71,7 @@ internal sealed class SceneCompileSettingsWidget : Widget
 
 	LineEdit Number( Func<float> get, Action<float> set, string tip )
 	{
-		var edit = new RecipeNumber( $"{get():G9}", this ) { ToolTip = tip, MaximumWidth = 120 };
+		var edit = new SettingsNumber( $"{get():G9}", this ) { ToolTip = tip, MaximumWidth = 120 };
 		edit.EditingFinished += () =>
 		{
 			if ( _refreshing )
@@ -124,7 +124,7 @@ internal sealed class SceneCompileSettingsWidget : Widget
 		base.OnDestroyed();
 	}
 
-	sealed class RecipeNumber( string text, Widget parent ) : LineEdit( text, parent )
+	sealed class SettingsNumber( string text, Widget parent ) : LineEdit( text, parent )
 	{
 		protected override void OnMouseReleased( MouseEvent e )
 		{

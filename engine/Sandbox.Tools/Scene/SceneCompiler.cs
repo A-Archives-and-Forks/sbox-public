@@ -28,12 +28,7 @@ internal static partial class SceneCompiler
 	}
 
 	[Menu( "Editor", "Scene/View Compile Report", "list", Priority = 1002 )]
-	public static void ViewCompileReport()
-	{
-		var session = SceneCompileSession.Current;
-		session.Refresh();
-		EditorEvent.Run( "scene.compile.show-report", session.HasResult ? session.CreateReportSnapshot() : session, "Report" );
-	}
+	public static void ViewCompileReport() => EditorEvent.Run( "scene.compile.show-report", "Report" );
 
 	/// <summary>
 	/// Everything the active scene has to compile, and why the rest is being left alone. Null with a
