@@ -41,10 +41,19 @@ internal static class SceneSource
 			return file;
 
 		var asset = FindAsset( file );
-		if ( asset is null || !SceneCompileCache.HasCompilation( asset ) )
+		if ( asset is null )
 			return file;
 
 		var editor = SceneEditorSession.Resolve( file );
+		if ( !SceneCompileCache.HasCompilation( asset ) )
+		{
+			if ( !file.IsCompiled || !File.Exists( asset.GetSourceFile( true ) ) )
+				return file;
+
+			Log.Warning( $"Scene compilation data for '{asset.Path}' is missing. Using the editable scene." );
+			return editor is not null ? editor.Scene.CreateSceneFile() : LoadForEditing( asset );
+		}
+
 		if ( editor?.CompilationDirty == true || SceneCompileCache.IsDirty( asset ) )
 			return editor is not null ? editor.Scene.CreateSceneFile() : LoadForEditing( asset );
 

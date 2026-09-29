@@ -12,8 +12,7 @@ using Sandbox.Resources;
 namespace Editor;
 
 /// <summary>
-/// Explicit scene compilations belong to the source asset, not to another editable scene. The manifest
-/// selects an immutable generation; source metadata retains compilation intent if generated data is deleted.
+/// Stores the selected scene bake and its generated runtime data.
 /// </summary>
 internal static class SceneCompileCache
 {
@@ -23,7 +22,6 @@ internal static class SceneCompileCache
 	const string SceneBlob = ".scene.blob";
 	const string OwnershipFile = ".scene-compile-generation";
 	const string Ownership = "sbox-scene-compile:1";
-	const string RequiredProperty = "sceneCompileRequired";
 	internal const string DirtyProperty = "sceneCompileDirty";
 	const string GenerationProperty = "__scene_compile_generation";
 	static readonly JsonSerializerOptions JsonOptions = new( JsonSerializerOptions.Default ) { MaxDepth = 512 };
@@ -196,9 +194,9 @@ internal static class SceneCompileCache
 		if ( !File.Exists( ManifestPath( source ) ) )
 			return false;
 
-		var compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions );
-		if ( compilation is null || compilation.Version != Version || compilation.Outputs is null || !Guid.TryParseExact( compilation.Generation, "N", out _ ) )
-			throw new InvalidDataException( Error( source, "has an invalid or incompatible manifest" ) );
+		var compilation = ReadCompilation( source );
+		if ( compilation is null )
+			return false;
 
 		var name = Path.GetFileName( path );
 		return generationFolder.Name.Equals( compilation.Generation, StringComparison.OrdinalIgnoreCase )
@@ -248,10 +246,6 @@ internal static class SceneCompileCache
 
 	static bool HasHistory( string source )
 	{
-		var metadata = ReadMetadata( ReadMetadataBytes( source ) );
-		if ( metadata[RequiredProperty]?.GetValue<bool>() == true )
-			return true;
-
 		if ( File.Exists( ManifestPath( source ) ) )
 			return true;
 
@@ -307,7 +301,7 @@ internal static class SceneCompileCache
 	}
 
 	/// <summary>
-	/// True when there is persisted compilation history, including a missing or damaged current compilation.
+	/// True when a selected bake's generated files are present.
 	/// Compiled-only packaged scenes do not need their editor cache.
 	/// </summary>
 	internal static bool HasCompilation( Asset asset )
@@ -318,7 +312,7 @@ internal static class SceneCompileCache
 		var source = SourcePath( asset );
 		try
 		{
-			return HasHistory( source );
+			return ReadCompilation( source ) is not null;
 		}
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or FormatException )
 		{
@@ -338,6 +332,30 @@ internal static class SceneCompileCache
 			|| TryRead( SourcePath( asset ), out _, out error, requireCompiled: true );
 	}
 
+	static Compilation ReadCompilation( string source )
+	{
+		var manifest = ManifestPath( source );
+		if ( !File.Exists( manifest ) )
+			return null;
+
+		var compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( manifest ), JsonOptions );
+		if ( compilation is null || compilation.Version != Version || !Guid.TryParseExact( compilation.Generation, "N", out _ )
+			|| compilation.Outputs is null
+			|| !compilation.Outputs.ContainsKey( SceneJson ) || !compilation.Outputs.ContainsKey( SceneBlob )
+			|| compilation.Outputs.Any( x => Path.GetFileName( x.Key ) != x.Key || x.Value == Missing ) )
+			throw new InvalidDataException( "has an invalid or incompatible manifest" );
+
+		if ( compilation.Outputs.Keys.Any( name => !File.Exists( OutputPath( source, compilation, name ) ) ) )
+		{
+			if ( !File.Exists( source ) )
+				throw new InvalidDataException( "is missing generated data and its editable source" );
+
+			return null;
+		}
+
+		return compilation;
+	}
+
 	static bool TryRead( string source, out Compilation compilation, out string error, bool requireCompiled = false )
 	{
 		compilation = null;
@@ -345,39 +363,50 @@ internal static class SceneCompileCache
 
 		try
 		{
-			if ( !HasHistory( source ) )
+			compilation = ReadCompilation( source );
+			if ( compilation is not null )
+			{
+				foreach ( var (name, hash) in compilation.Outputs )
+				{
+					if ( OutputHash( OutputPath( source, compilation, name ) ) != hash )
+						throw new InvalidDataException( $"is missing or has changed generated data '{name}'" );
+				}
+
+				RequireSceneIdentity( source, compilation.SceneId );
+			}
+
+			if ( !requireCompiled || compilation is null && !HasHistory( source ) && File.Exists( CompiledPath( source ) ) )
 				return true;
 
-			if ( !File.Exists( ManifestPath( source ) ) )
-				throw new InvalidDataException( "is missing its generated cache" );
-
-			compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions );
-			if ( compilation is null || compilation.Version != Version || !Guid.TryParseExact( compilation.Generation, "N", out _ )
-				|| compilation.Outputs is null
-				|| !compilation.Outputs.ContainsKey( SceneJson ) || !compilation.Outputs.ContainsKey( SceneBlob ) )
-				throw new InvalidDataException( "has an invalid or incompatible manifest" );
-
-			foreach ( var (name, hash) in compilation.Outputs )
+			var runtime = ReadCompiledJson( source, out var data );
+			if ( runtime is null || (runtime["__scene_compiled"]?.GetValue<bool>() == true) != (compilation is not null) )
 			{
-				if ( Path.GetFileName( name ) != name || OutputHash( OutputPath( source, compilation, name ) ) != hash || hash == Missing )
-					throw new InvalidDataException( $"is missing or has changed generated data '{name}'" );
+				var asset = AssetSystem.FindByPath( source );
+				if ( asset is null || !asset.Compile( true ) || asset.IsCompileFailed )
+					throw new InvalidDataException( "could not regenerate its runtime .scene_c" );
+
+				runtime = ReadCompiledJson( source, out data );
 			}
 
-			RequireSceneIdentity( source, compilation.SceneId );
-
-			if ( requireCompiled )
+			if ( compilation is null )
 			{
-				var runtime = ReadCompiledJson( source, out var data );
-				if ( runtime?[GenerationProperty]?.GetValue<string>() != compilation.Generation
-					|| runtime["__guid"]?.GetValue<Guid>() != compilation.SceneId
-					|| runtime["__scene_compiled"]?.GetValue<bool>() != true
+				if ( runtime is null || runtime["__scene_compiled"]?.GetValue<bool>() == true
 					|| !string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
-					throw new InvalidDataException( "is missing its matching runtime .scene_c" );
+					throw new InvalidDataException( "could not restore its editable runtime scene" );
 
-				var blob = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
-				if ( Convert.ToHexString( SHA256.HashData( blob ) ) != compilation.Outputs[SceneBlob] )
-					throw new InvalidDataException( "has runtime binary data that does not match its compilation" );
+				RequireSceneIdentity( source, runtime["__guid"]?.GetValue<Guid>() ?? Guid.Empty );
+				return true;
 			}
+
+			if ( runtime?[GenerationProperty]?.GetValue<string>() != compilation.Generation
+				|| runtime["__guid"]?.GetValue<Guid>() != compilation.SceneId
+				|| runtime["__scene_compiled"]?.GetValue<bool>() != true
+				|| !string.IsNullOrEmpty( runtime["__scene_compile_error"]?.GetValue<string>() ) )
+				throw new InvalidDataException( "is missing its matching runtime .scene_c" );
+
+			var blob = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
+			if ( Convert.ToHexString( SHA256.HashData( blob ) ) != compilation.Outputs[SceneBlob] )
+				throw new InvalidDataException( "has runtime binary data that does not match its compilation" );
 
 			return true;
 		}
@@ -416,7 +445,11 @@ internal static class SceneCompileCache
 		}
 
 		if ( compilation is null )
+		{
+			if ( HasHistory( source ) )
+				Log.Warning( $"Scene compilation data for '{source}' is missing. Using the editable scene." );
 			return true;
+		}
 
 		foreach ( var name in compilation.Outputs.Keys )
 		{
@@ -558,24 +591,22 @@ internal static class SceneCompileCache
 
 	internal static void ClearCompilation( Asset asset, Guid sceneId )
 	{
-		if ( !HasCompilation( asset ) )
+		if ( !IsScene( asset ) || string.IsNullOrEmpty( SourcePath( asset ) ) )
 			return;
 
 		var source = SourcePath( asset );
+		if ( !HasHistory( source ) )
+			return;
+
 		RequireSceneIdentity( source, sceneId );
 		var manifest = ManifestPath( source );
 		var compiled = CompiledPath( source );
 		var previous = File.Exists( manifest ) ? File.ReadAllBytes( manifest ) : null;
 		var previousCompiled = File.Exists( compiled ) ? File.ReadAllBytes( compiled ) : null;
-		var previousMetadata = ReadMetadataBytes( source );
-		var metadata = ReadMetadata( previousMetadata );
-		metadata.Remove( RequiredProperty );
-		var updatedMetadata = JsonSerializer.SerializeToUtf8Bytes( metadata, JsonOptions );
 		var success = false;
 
 		try
 		{
-			WriteAtomic( MetadataPath( source ), updatedMetadata );
 			File.Delete( manifest );
 			File.Delete( compiled );
 			if ( !asset.Compile( true ) || asset.IsCompileFailed )
@@ -592,15 +623,8 @@ internal static class SceneCompileCache
 		{
 			if ( !success )
 			{
-				try
-				{
-					RestoreFile( manifest, previous );
-					RestoreFile( compiled, previousCompiled );
-				}
-				finally
-				{
-					RestoreMetadata( source, previousMetadata, updatedMetadata, RequiredProperty );
-				}
+				RestoreFile( manifest, previous );
+				RestoreFile( compiled, previousCompiled );
 			}
 		}
 
@@ -645,7 +669,6 @@ internal static class SceneCompileCache
 		var previousCompiled = File.Exists( compiled ) ? File.ReadAllBytes( compiled ) : null;
 		var previousMetadata = ReadMetadataBytes( source );
 		var metadata = ReadMetadata( previousMetadata );
-		metadata[RequiredProperty] = true;
 		metadata[SceneCompilerSettings.MetadataProperty] = JsonSerializer.SerializeToNode( settings );
 		var updatedMetadata = JsonSerializer.SerializeToUtf8Bytes( metadata, JsonOptions );
 		var metadataWritten = false;
@@ -683,7 +706,7 @@ internal static class SceneCompileCache
 				finally
 				{
 					if ( metadataWritten )
-						RestoreMetadata( source, previousMetadata, updatedMetadata, RequiredProperty, SceneCompilerSettings.MetadataProperty );
+						RestoreMetadata( source, previousMetadata, updatedMetadata, SceneCompilerSettings.MetadataProperty );
 				}
 			}
 		}
