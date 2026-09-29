@@ -670,6 +670,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		// Tear down the current game in its own scope. We may have been called from the
 		// menu, and the shutdown clears per-context state.
+		Api.Activity.LoadStage( "teardown" );
 		using ( GlobalContext.GameScope() )
 		{
 			gameInstance?.Shutdown();
@@ -720,6 +721,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			using var _ = GlobalContext.GameScope();
 
+			Api.Activity.LoadStage( "reset" );
 			ResetEnvironment();
 
 			NativeErrorReporter.Breadcrumb( true, "game", $"Loading game package {ident}" );
@@ -785,6 +787,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			if ( flags.Contains( GameLoadingFlags.Host ) )
 			{
+				Api.Activity.LoadStage( "scene" );
+
 				if ( !gameInstance.OpenStartupScene() )
 				{
 					throw new Exception( "Failed to load startup scene" );
