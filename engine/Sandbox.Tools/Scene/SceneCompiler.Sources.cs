@@ -44,25 +44,13 @@ partial class SceneCompiler
 		if ( mesh.Rigidbody.IsValid() )
 			return "driven by a rigidbody";
 
-		if ( Visible( mesh ) && mesh.RenderType != ModelRenderer.ShadowRenderType.On )
+		if ( !mesh.HideInGame && mesh.RenderType != ModelRenderer.ShadowRenderType.On )
 			return "shadows aren't on";
 
 		if ( mesh.Collision == MeshComponent.CollisionType.None )
 			return null;
 
-		if ( mesh.IsTrigger )
-			return "is a trigger";
-
-		if ( mesh.ColliderFlags != default )
-			return "has collider flags";
-
-		if ( !mesh.SurfaceVelocity.IsNearZeroLength )
-			return "has surface velocity";
-
-		if ( mesh.Friction.HasValue || mesh.Elasticity.HasValue || mesh.RollingResistance.HasValue )
-			return "has physics overrides";
-
-		return null;
+		return PhysicsSkipReason( mesh );
 	}
 
 	/// <summary>
@@ -84,12 +72,6 @@ partial class SceneCompiler
 	}
 
 	static bool PropOrigin( Material material ) => material.IsValid() && material.Flags.GetBool( "VertexNeedsPropOrigin" );
-
-	/// <summary>
-	/// Whether a mesh draws in game, and so has render geometry worth compiling. One that doesn't is
-	/// compiled for its collision alone, which is how you'd build something like a player clip.
-	/// </summary>
-	static bool Visible( MeshComponent mesh ) => !mesh.HideInGame;
 
 	/// <summary>
 	/// Why a model renderer's geometry can't be welded into the world, or null when it can. This
@@ -163,6 +145,11 @@ partial class SceneCompiler
 		if ( !collider.Static )
 			return "isn't static";
 
+		return PhysicsSkipReason( collider );
+	}
+
+	static string PhysicsSkipReason( Collider collider )
+	{
 		if ( collider.IsTrigger )
 			return "is a trigger";
 
@@ -191,30 +178,9 @@ partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// The prop driving this renderer, if there is one. A prop builds its own renderer whenever it
-	/// loads, so compiling one without taking the prop with it just draws the geometry twice.
-	/// </summary>
-	static Prop Owner( ModelRenderer renderer ) => renderer.GameObject.Components.Get<Prop>( FindMode.EverythingInSelf );
-
-	/// <summary>
 	/// An object's effective tags, ancestors included, as one comparable key. Compiled geometry moves
 	/// out of the hierarchy it inherited these from, so anything sharing an aggregate or a collision
 	/// shape has to share its tags.
 	/// </summary>
-	static string TagKey( GameObject go )
-	{
-		var tags = new List<string>();
-
-		foreach ( var tag in go.Tags.TryGetAll() )
-		{
-			tags.Add( tag );
-		}
-
-		if ( tags.Count == 0 )
-			return string.Empty;
-
-		tags.Sort( StringComparer.Ordinal );
-
-		return string.Join( ',', tags );
-	}
+	static string TagKey( GameObject go ) => string.Join( ',', go.Tags.TryGetAll().Order( StringComparer.Ordinal ) );
 }

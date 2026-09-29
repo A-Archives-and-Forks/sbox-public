@@ -257,7 +257,7 @@ partial class SceneCompiler
 
 			var transform = new GeometryTransform( source.WorldTransform );
 			var tags = TagKey( source.GameObject );
-			var visible = Visible( source );
+			var visible = !source.HideInGame;
 
 			if ( source.Collision == MeshComponent.CollisionType.Hull )
 			{
@@ -318,7 +318,7 @@ partial class SceneCompiler
 				processed.Add( renderer.Id );
 
 				// The prop would only build itself another renderer, so it goes too.
-				if ( Owner( renderer ) is { } owner )
+				if ( go.Components.Get<Prop>( FindMode.EverythingInSelf ) is { } owner )
 				{
 					processed.Add( owner.Id );
 				}
