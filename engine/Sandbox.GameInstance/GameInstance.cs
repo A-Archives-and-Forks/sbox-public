@@ -229,6 +229,9 @@ internal class GameInstance : IGameInstance
 
 		using var loadingScreen = new MenuLoadingScreen();
 
+		// The map is mounted after the game package, but its downloads can run alongside
+		var mapPrefetch = string.IsNullOrWhiteSpace( LaunchArguments.Map ) ? null : PrefetchMapAsync( LaunchArguments.Map, token );
+
 		var downloadOptions = new PackageLoadOptions()
 		{
 			PackageIdent = identWithVersion,
@@ -284,7 +287,7 @@ internal class GameInstance : IGameInstance
 			Application.Map = map;
 			Api.Activity.LoadStage( "map" );
 
-			await LoadMapPackage( map, token );
+			await LoadMapPackage( map, mapPrefetch, token );
 			Application.MapPackage = _mapPackage;
 		}
 
@@ -356,7 +359,20 @@ internal class GameInstance : IGameInstance
 		return true;
 	}
 
-	private async Task<bool> LoadMapPackage( string map, CancellationToken token )
+	/// <summary>
+	/// The map's package info, manifest and files, so mounting it later finds everything cached.
+	/// </summary>
+	static async Task<Package> PrefetchMapAsync( string map, CancellationToken token )
+	{
+		var package = await Package.FetchAsync( map, false );
+
+		if ( package is { IsRemote: true } )
+			await PackageManager.PrefetchAsync( package, true, false, token );
+
+		return package;
+	}
+
+	private async Task<bool> LoadMapPackage( string map, Task<Package> prefetch, CancellationToken token )
 	{
 		if ( _mapPackage is not null )
 		{
@@ -364,7 +380,7 @@ internal class GameInstance : IGameInstance
 			_mapPackage = default;
 		}
 
-		_mapPackage = await Package.FetchAsync( map, false );
+		_mapPackage = prefetch is not null ? await prefetch : await Package.FetchAsync( map, false );
 
 		if ( _mapPackage is null ) return false;
 		if ( _mapPackage.TypeName != "map" ) return false;
