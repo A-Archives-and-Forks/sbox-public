@@ -22,7 +22,6 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 	readonly List<SceneCompileStage> _stages = new();
 	SceneCompilerSettings _settings = new();
 	SceneCompiler.Sources _sources;
-	SceneCompiler.Sources _resultSources;
 	SceneCompileReport _sourceReport;
 	SceneCompileReport _resultReport;
 	string _path;
@@ -108,6 +107,7 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 			if ( revision == _compilationRevision && scene == Scene && path == Scene?.Source?.ResourcePath )
 			{
 				_validatedScene = scene;
+				HasCompilation = validation.HasCompilation;
 				_validatedSettings = validation.HasCompilation && validation.IsCurrent ? SceneCompilerSettings.Load( asset ) : null;
 				_compileDependencyPaths = new( validation.Paths.Select( Path.GetFullPath ), StringComparer.OrdinalIgnoreCase );
 				_compilationCurrent = validation.HasCompilation && validation.IsCurrent;
@@ -136,8 +136,6 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 	/// </summary>
 	public string Name { get; private set; } = "No scene";
 
-	internal SceneCompiler.Sources Sources => HasResult ? _resultSources : _sources;
-
 	/// <summary>
 	/// Source information for the latest result, or the current preview before a compile.
 	/// Null when no sources are available.
@@ -150,6 +148,8 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 	public bool HasSources => Report is not null;
 
 	public bool HasCompileGeometry => _sources?.HasCompileGeometry == true;
+
+	public bool HasCompilation { get; private set; }
 
 	/// <summary>
 	/// A settings, source-scan, or compile error, or null when none has been recorded.
@@ -211,7 +211,7 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 	/// <summary>
 	/// Whether the selected saved scene can start a compile with the current draft recipe.
 	/// </summary>
-	public bool CanCompile => !Running && HasCompileGeometry
+	public bool CanCompile => !Running && (HasCompileGeometry || HasCompilation)
 		&& _compilationValidated && (!_compilationCurrent || HasPendingSettings)
 		&& _settingsError is null && _scanError is null && EligibilityError() is null;
 
@@ -377,7 +377,6 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		Summary = null;
 		Statistics = null;
 		HasResult = false;
-		_resultSources = null;
 		_resultReport = null;
 		Fraction = 0;
 		_lines.Clear();
@@ -397,6 +396,7 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 			_validatedScene = null;
 			_validatedSettings = null;
 			_compileDependencyPaths = null;
+			HasCompilation = false;
 			ClearResult();
 			_settings = new();
 			_compileOnSave = false;
@@ -429,13 +429,6 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 			_sources = SceneCompiler.Scan( Scene, out _scanError );
 			if ( _sources is not null )
 			{
-				if ( !_sources.HasCompileGeometry )
-				{
-					if ( Scene.Editor?.HasUnsavedChanges == false && _sources.Asset is not null )
-						SceneCompileCache.ClearCompilation( _sources.Asset );
-					ClearResult();
-				}
-
 				_sourceReport = new SceneCompileReport( _sources.Name, _sources.Meshes.Length, _sources.Props.Length,
 					Array.AsReadOnly( _sources.Skipped.Select( skip => new SceneCompileSkip( skip.Component, skip.Label, skip.Reason ) ).ToArray() ) );
 			}
@@ -505,6 +498,13 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 
 			if ( nothingToCompile )
 			{
+				if ( EligibilityError() is null && _sources.Asset is not null )
+				{
+					SceneCompileCache.ClearCompilation( _sources.Asset );
+					HasCompilation = false;
+					InvalidateCompilation();
+				}
+
 				_lines.Add( _status );
 				Running = false;
 				Notify();
@@ -624,7 +624,6 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		Summary = summary;
 		Fraction = 1;
 		HasResult = true;
-		_resultSources = _sources;
 		_resultReport = _sourceReport;
 		var duration = TimeSpan.FromMilliseconds( _elapsed.ElapsedMilliSeconds );
 		if ( summary is not null && Statistics is not null )
@@ -680,8 +679,6 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 			_scanError = _scanError,
 			_failure = _failure,
 			_status = _status,
-			_sources = Sources,
-			_resultSources = Sources,
 			_sourceReport = Report,
 			_resultReport = Report,
 			Summary = Summary,

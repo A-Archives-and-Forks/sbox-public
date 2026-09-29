@@ -132,7 +132,7 @@ sealed class SceneCompileToolbar : Widget, AssetSystem.IEventListener
 			var scene = _session.Scene;
 			var path = scene?.Source?.ResourcePath;
 			_compileError = null;
-			if ( !_session.HasCompileGeometry || scene?.Editor?.HasUnsavedChanges == true )
+			if ( scene?.Editor?.HasUnsavedChanges == true )
 				return;
 
 			var compilation = await _session.ValidateCompilationAsync();
@@ -187,7 +187,7 @@ sealed class SceneCompileToolbar : Widget, AssetSystem.IEventListener
 		if ( Game.IsPlaying )
 			return ("Play mode", "Stop playing before compiling the scene.", Theme.TextLight);
 
-		if ( _session.Error is null && _session.HasSources && !_session.HasCompileGeometry )
+		if ( _session.Error is null && _session.HasSources && !_session.HasCompileGeometry && !_session.HasCompilation )
 			return ("Nothing to compile", "This scene has no geometry to bake.", Theme.TextLight);
 
 		if ( _session.Scene?.Editor?.HasUnsavedChanges == true )
