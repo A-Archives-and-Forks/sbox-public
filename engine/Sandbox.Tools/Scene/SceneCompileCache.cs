@@ -281,6 +281,8 @@ internal static class SceneCompileCache
 		} ) as JsonObject ?? throw new InvalidDataException( "Scene metadata must contain a JSON object" );
 	}
 
+	internal static bool IsDirty( Asset asset ) => ReadSetting( asset, DirtyProperty )?.GetValue<bool>() != false;
+
 	internal static JsonNode ReadSetting( Asset asset, string name )
 	{
 		var source = IsScene( asset ) ? SourcePath( asset ) : null;

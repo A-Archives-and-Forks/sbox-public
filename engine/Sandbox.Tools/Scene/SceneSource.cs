@@ -45,8 +45,7 @@ internal static class SceneSource
 			return file;
 
 		var editor = SceneEditorSession.Resolve( file );
-		if ( editor?.CompilationDirty == true
-			|| SceneCompileCache.ReadSetting( asset, SceneCompileCache.DirtyProperty )?.GetValue<bool>() != false )
+		if ( editor?.CompilationDirty == true || SceneCompileCache.IsDirty( asset ) )
 			return editor is not null ? editor.Scene.CreateSceneFile() : LoadForEditing( asset );
 
 		if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )

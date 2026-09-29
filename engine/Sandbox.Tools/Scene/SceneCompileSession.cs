@@ -33,6 +33,7 @@ public sealed class SceneCompileSession
 	bool _playing;
 	bool _notifying;
 	bool _compileOnSave;
+	bool _savedCompilationDirty;
 	Scene _queuedScene;
 	string _queuedPath;
 	CancellationTokenSource _cancel = new();
@@ -63,6 +64,9 @@ public sealed class SceneCompileSession
 	public bool HasCompileGeometry => _sources?.HasCompileGeometry == true;
 
 	public bool HasCompilation { get; private set; }
+
+	public bool NeedsCompilation => !HasCompilation || _savedCompilationDirty
+		|| Scene?.Editor is SceneEditorSession { CompilationDirty: true };
 
 	/// <summary>
 	/// A settings, source-scan, or compile error, or null when none has been recorded.
@@ -332,6 +336,7 @@ public sealed class SceneCompileSession
 		{
 			_sources = SceneCompiler.Scan( Scene, out _scanError );
 			HasCompilation = SceneCompileCache.HasCompilation( _sources?.Asset );
+			_savedCompilationDirty = HasCompilation && SceneCompileCache.IsDirty( _sources.Asset );
 			_sourceReport = _sources?.Report;
 		}
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException )
@@ -414,6 +419,7 @@ public sealed class SceneCompileSession
 			enteredCompiler = true;
 			var result = await SceneCompiler.Compile( _sources, _settings, this );
 			HasCompilation = true;
+			_savedCompilationDirty = SceneCompileCache.IsDirty( _sources.Asset );
 			Finish( "Done", result );
 		}
 		catch ( OperationCanceledException )

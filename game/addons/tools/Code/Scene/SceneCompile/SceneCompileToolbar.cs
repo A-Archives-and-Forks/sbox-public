@@ -76,8 +76,8 @@ sealed class SceneCompileToolbar : Widget
 	{
 		if ( _session.Running )
 			return _session.Cancelling
-				? ("Cancelling", "Stopping compilation and removing unfinished output.", Theme.Blue)
-				: (_session.Status, "Compiling an isolated snapshot. You can keep editing the scene.", Theme.Blue);
+				? ("Cancelling", "", Theme.Blue)
+				: (_session.Status, "", Theme.Blue);
 
 		if ( Game.IsPlaying )
 			return ("Play mode", "Stop playing before compiling the scene.", Theme.TextLight);
@@ -86,7 +86,7 @@ sealed class SceneCompileToolbar : Widget
 			return ("Nothing to compile", "This scene has no geometry to bake.", Theme.TextLight);
 
 		if ( _session.Scene?.Editor?.HasUnsavedChanges == true )
-			return ("Unsaved changes", "Save this scene before compiling it.", Theme.Yellow);
+			return ("Needs compile (unsaved)", "Play uses the uncompiled scene. Save before compiling.", Theme.Yellow);
 
 		if ( _session.HasResult && _session.Status == "Failed" )
 			return ("Compile failed", _session.Error ?? "Open the log to see why compilation failed.", Theme.Red);
@@ -94,9 +94,12 @@ sealed class SceneCompileToolbar : Widget
 		if ( _session.Error is not null )
 			return ("Cannot compile", _session.Error, Theme.Yellow);
 
-		return _session.HasCompilation
-			? ("Previously compiled", "Compile again to include your latest changes.", Theme.Green)
-			: ("Not compiled", "Compile this scene to build its runtime geometry and collision.", Theme.Yellow);
+		if ( !_session.HasCompilation )
+			return ("Not compiled", "Play uses the uncompiled scene.", Theme.Yellow);
+
+		return _session.NeedsCompilation
+			? ("Needs compile", "Play uses the uncompiled scene.", Theme.Yellow)
+			: ("Compiled", "Play uses the compiled scene.", Theme.Green);
 	}
 
 	void UpdateControls()
