@@ -251,7 +251,8 @@ internal class GameInstance : IGameInstance
 		Log.Trace( $"Loading package {Package.Title}" );
 		LoadingScreen.Title = $"Loading {Package.Title}";
 		Api.Activity.LoadStage( "assemblies" );
-		await Task.Delay( 5, token ); // make frame
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		try
 		{
@@ -296,7 +297,8 @@ internal class GameInstance : IGameInstance
 
 		LoadingScreen.Title = $"Loading Resources";
 		Api.Activity.LoadStage( "resources" );
-		await Task.Delay( 5, token ); // make frame
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		Log.Trace( $"All Loaded" );
 
@@ -325,7 +327,8 @@ internal class GameInstance : IGameInstance
 
 		LoadingScreen.Title = $"Loading Fonts";
 		Api.Activity.LoadStage( "fonts" );
-		await Task.Delay( 5, token ); // make frame
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		Log.Trace( $"Loading Fonts" );
 		FontManager.Instance.LoadAll( FileSystem.Mounted );
