@@ -10,7 +10,7 @@ partial class SceneCompiler
 	/// <summary>
 	/// Turn the meshes we couldn't weld into the world into models of their own.
 	/// </summary>
-	static async Task<int> ConvertMeshes( Scene compiled, HashSet<Guid> meshes, SceneFolder folder, SceneCompileStatistics statistics, Func<int, int, Task> step )
+	static async Task<int> ConvertMeshes( Scene compiled, HashSet<Guid> meshes, SceneFolder folder, string outputFolder, SceneCompileStatistics statistics, Func<int, int, Task> step )
 	{
 		var pending = new List<MeshComponent>();
 
@@ -30,7 +30,7 @@ partial class SceneCompiler
 			// editor, which has no business drawing a frame with someone else's scene pushed.
 			using ( compiled.Push() )
 			{
-				if ( Convert( pending[i], folder, $"{OutputFolder}/mesh_{converted}.vmdl_c", statistics ) )
+				if ( Convert( pending[i], folder, $"{outputFolder}/mesh_{converted}.vmdl_c", statistics ) )
 					converted++;
 			}
 

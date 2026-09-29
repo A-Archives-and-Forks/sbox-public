@@ -12,20 +12,6 @@ namespace Editor;
 /// </summary>
 internal static partial class SceneCompiler
 {
-	/// <summary>
-	/// Each run gets its own generation so failed or cancelled compilations leave the previous one intact.
-	/// </summary>
-	static string OutputFolder;
-
-	/// <summary>
-	/// The immutable recipe captured at the start of this compile. Window edits cannot change it.
-	/// </summary>
-	internal static SceneCompilerSettings Settings { get; private set; } = new();
-
-	/// <summary>
-	/// True while a compile is in flight. A compile is spread over frames and works out of shared
-	/// state, so a second one starting on top of the first would trample it.
-	/// </summary>
 	static bool _running;
 
 	/// <summary>
@@ -119,11 +105,9 @@ internal static partial class SceneCompiler
 
 		ArgumentNullException.ThrowIfNull( settings );
 		settings.Validate();
-		Settings = settings;
 		var generation = Guid.NewGuid().ToString( "N" );
 		var sourcePath = sources.Asset.GetSourceFile( true );
 		_running = true;
-		OutputFolder = $"/compiled/{generation}";
 		string[] result = null;
 		Scene compiled = null;
 
@@ -150,7 +134,7 @@ internal static partial class SceneCompiler
 			}
 
 			SceneCompileCache.BeginGeneration( sources.Asset, generation );
-			result = await Run( sources, compiled, sourceFile.Id, sourcePath, session, generation );
+			result = await Run( sources, compiled, sourceFile.Id, sourcePath, settings, session, generation );
 		}
 		finally
 		{
@@ -168,7 +152,6 @@ internal static partial class SceneCompiler
 				finally
 				{
 					_running = false;
-					OutputFolder = null;
 				}
 			}
 		}
@@ -177,10 +160,11 @@ internal static partial class SceneCompiler
 	}
 
 	static async Task<string[]> Run( Sources sources, Scene compiled, Guid sceneId, string sourcePath,
-		SceneCompileSession session, string generation )
+		SceneCompilerSettings settings, SceneCompileSession session, string generation )
 	{
 		var sourceAsset = sources.Asset;
 		var sceneFolder = sources.Folder;
+		var outputFolder = $"/compiled/{generation}";
 		var discovered = DiscoverSources( compiled ).ToArray();
 		var meshes = Gather<MeshComponent>( discovered );
 		var props = Gather<ModelRenderer>( discovered );
@@ -207,10 +191,7 @@ internal static partial class SceneCompiler
 		await Task.Delay( 1, session.Cancel );
 
 		var processed = new HashSet<Guid>();
-		var plan = await Plan( meshes, props, processed, Step, session.Cancel );
-
-		if ( plan is null )
-			return default;
+		var plan = await Plan( meshes, props, processed, settings, Step, session.Cancel );
 
 		var plans = plan.Aggregates;
 		var statistics = new SceneCompileStatistics();
@@ -252,7 +233,7 @@ internal static partial class SceneCompiler
 
 		for ( int i = 0; i < plans.Length; i++ )
 		{
-			models[i] = Model.Load( Write( sceneFolder, $"{OutputFolder}/aggregate_{i}.vmdl_c", vmdls[i] ) );
+			models[i] = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", vmdls[i] ) );
 			if ( !models[i].IsValid() || models[i].IsError )
 				throw new InvalidOperationException( $"Could not load compiled aggregate model {i}." );
 
@@ -263,7 +244,7 @@ internal static partial class SceneCompiler
 
 		for ( int i = 0; i < physics.Count; i++ )
 		{
-			collision[i] = PhysicsGroupDescription.Load( Write( sceneFolder, $"{OutputFolder}/collision_{i}.vphys_c", physics[i].Data ) );
+			collision[i] = PhysicsGroupDescription.Load( Write( sceneFolder, $"{outputFolder}/collision_{i}.vphys_c", physics[i].Data ) );
 			if ( collision[i] is null )
 				throw new InvalidOperationException( $"Could not load compiled collision resource {i}." );
 
@@ -288,7 +269,7 @@ internal static partial class SceneCompiler
 			session.Phase( $"Converting {leftovers.Count} meshes" );
 			await Task.Delay( 1, session.Cancel );
 
-			converted = await ConvertMeshes( compiled, leftovers, sceneFolder, statistics, Step );
+			converted = await ConvertMeshes( compiled, leftovers, sceneFolder, outputFolder, statistics, Step );
 			processed.UnionWith( leftovers );
 		}
 
@@ -371,8 +352,8 @@ internal static partial class SceneCompiler
 		}
 
 		session.Phase( "Writing runtime scene" );
-		SceneCompileCache.Publish( sourceAsset, sourcePath, generation, file, Settings, session.Cancel );
-		Settings.SaveDefaults();
+		SceneCompileCache.Publish( sourceAsset, sourcePath, generation, file, settings, session.Cancel );
+		settings.SaveDefaults();
 		session.Statistics = statistics;
 
 		var translucent = plans.Count( x => x.Translucent );

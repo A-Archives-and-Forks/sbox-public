@@ -418,9 +418,8 @@ public sealed class SceneCompileSession
 			Cancel.ThrowIfCancellationRequested();
 			enteredCompiler = true;
 			var result = await SceneCompiler.Compile( _sources, _settings, this );
-			if ( result is not null )
-				HasCompilation = true;
-			Finish( result is null ? "Cancelled" : "Done", result );
+			HasCompilation = true;
+			Finish( "Done", result );
 		}
 		catch ( OperationCanceledException )
 		{

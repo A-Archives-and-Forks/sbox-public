@@ -234,7 +234,7 @@ partial class SceneCompiler
 	/// Triangulate every mesh and static prop into world space and work out which aggregate each
 	/// piece belongs in. Awaits <paramref name="onProgress"/> as it goes so the editor stays alive.
 	/// </summary>
-	static async Task<CompilePlan> Plan( MeshComponent[] meshes, ModelRenderer[] props, HashSet<Guid> processed, Func<int, int, Task> onProgress, CancellationToken cancel )
+	static async Task<CompilePlan> Plan( MeshComponent[] meshes, ModelRenderer[] props, HashSet<Guid> processed, SceneCompilerSettings settings, Func<int, int, Task> onProgress, CancellationToken cancel )
 	{
 		var groups = new Dictionary<GroupKey, List<Chunk>>();
 		var collision = new List<CollisionChunk>();
@@ -245,8 +245,7 @@ partial class SceneCompiler
 
 		foreach ( var source in meshes )
 		{
-			if ( cancel.IsCancellationRequested )
-				return null;
+			cancel.ThrowIfCancellationRequested();
 
 			source.Mesh.SetSmoothingAngle( source.SmoothingAngle );
 			var submeshes = source.Mesh.Triangulate();
@@ -310,8 +309,7 @@ partial class SceneCompiler
 
 		foreach ( var renderer in props )
 		{
-			if ( cancel.IsCancellationRequested )
-				return null;
+			cancel.ThrowIfCancellationRequested();
 
 			if ( TryCompileProp( renderer, cache, groups ) )
 			{
@@ -358,12 +356,12 @@ partial class SceneCompiler
 				}
 				else
 				{
-					await Split( chunks, sources[i], StepGeometry );
+					await Split( chunks, sources[i], settings.MaxChunkSize, StepGeometry );
 				}
 				sources[i] = default;
 			}
 
-			foreach ( var cluster in await Cluster( [.. chunks], MaxFragments( key.Material ), StepGeometry ) )
+			foreach ( var cluster in await Cluster( [.. chunks], MaxFragments( key.Material ), settings.AggregateCost, StepGeometry ) )
 			{
 				plans.Add( new AggregatePlan( key.Material, key.Tint, key.Tags, key.Transform, cluster ) );
 			}
@@ -388,20 +386,14 @@ partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// How big a piece of geometry may get before it's worth splitting up. The map compiler cuts its
-	/// render clusters at the same size.
-	/// </summary>
-	static float MaxChunkSize => Settings.MaxChunkSize;
-
-	/// <summary>
 	/// Split whole triangles into cullable chunks, bounded by the renderer's fragment capacity.
 	/// </summary>
-	static async Task Split( List<Chunk> chunks, Chunk source, Func<Task> step )
+	static async Task Split( List<Chunk> chunks, Chunk source, float maxChunkSize, Func<Task> step )
 	{
 		await step();
 		var (vertices, indices, whole, streams) = source;
 
-		if ( Longest( whole ) <= MaxChunkSize )
+		if ( Longest( whole ) <= maxChunkSize )
 		{
 			chunks.Add( source );
 			return;
@@ -435,7 +427,7 @@ partial class SceneCompiler
 			var span = triangles.AsSpan( range );
 			var bounds = Bounds( vertices, indices, span );
 
-			if ( length < 2 || node.Budget == 1 || Longest( bounds ) <= MaxChunkSize )
+			if ( length < 2 || node.Budget == 1 || Longest( bounds ) <= maxChunkSize )
 			{
 				AddLeaf();
 				continue;
@@ -467,7 +459,7 @@ partial class SceneCompiler
 
 			void AddLeaf()
 			{
-				if ( Longest( bounds ) > MaxChunkSize )
+				if ( Longest( bounds ) > maxChunkSize )
 					oversized++;
 
 				if ( length == count )
@@ -487,7 +479,7 @@ partial class SceneCompiler
 		}
 
 		if ( oversized > 0 )
-			Log.Warning( $"Compile Scene: kept {oversized} chunks larger than MaxChunkSize {MaxChunkSize} at {whole} to avoid excessive splitting." );
+			Log.Warning( $"Compile Scene: kept {oversized} chunks larger than MaxChunkSize {maxChunkSize} at {whole} to avoid excessive splitting." );
 	}
 
 	/// <summary>
@@ -546,16 +538,10 @@ partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// What one more aggregate costs, measured in fragments. An aggregate that survives culling
-	/// walks its fragments on the CPU once per view, but each one costs a scene object and a draw.
-	/// </summary>
-	static float AggregateCost => Settings.AggregateCost;
-
-	/// <summary>
 	/// Split chunks into the aggregates that draw them, subdividing while the culling that buys is
 	/// worth more than the extra draw, and always far enough to fit the fragment limit.
 	/// </summary>
-	static async Task<List<Chunk[]>> Cluster( Chunk[] chunks, int maxFragments, Func<Task> step )
+	static async Task<List<Chunk[]>> Cluster( Chunk[] chunks, int maxFragments, float aggregateCost, Func<Task> step )
 	{
 		var aggregates = new List<Chunk[]>();
 		var pending = new Stack<(Range Range, int Depth)>();
@@ -585,7 +571,7 @@ partial class SceneCompiler
 
 			keys.AsSpan( 0, length ).Sort( span );
 
-			var at = FindSplit( span, bounds, maxFragments, suffix.AsSpan( 0, length ) );
+			var at = FindSplit( span, bounds, maxFragments, aggregateCost, suffix.AsSpan( 0, length ) );
 
 			if ( at == 0 )
 			{
@@ -609,7 +595,7 @@ partial class SceneCompiler
 	/// it is. Equal-cost splits prefer balanced children; no-split still wins ties when legal.
 	/// Falls back to halving if nothing wins but we're still over the fragment limit.
 	/// </summary>
-	static int FindSplit( ReadOnlySpan<Chunk> chunks, BBox bounds, int maxFragments, Span<float> suffix )
+	static int FindSplit( ReadOnlySpan<Chunk> chunks, BBox bounds, int maxFragments, float aggregateCost, Span<float> suffix )
 	{
 		if ( chunks.Length < 2 )
 			return 0;
@@ -625,7 +611,7 @@ partial class SceneCompiler
 		var area = Area( bounds );
 		var best = 0;
 		var bestCost = chunks.Length <= maxFragments ? area * chunks.Length : float.MaxValue;
-		var parentCost = area * AggregateCost;
+		var parentCost = area * aggregateCost;
 
 		box = chunks[0].Bounds;
 
