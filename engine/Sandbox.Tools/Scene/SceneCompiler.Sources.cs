@@ -11,8 +11,6 @@ partial class SceneCompiler
 		public bool NeedsCompilation => SkipReason is null || NeedsConversion;
 	}
 
-	internal static bool HasAnythingToCompile( Scene scene ) => DiscoverSources( scene ).Any( x => x.NeedsCompilation );
-
 	static IEnumerable<Source> DiscoverSources( Scene scene )
 	{
 		foreach ( var mesh in scene.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants ) )
