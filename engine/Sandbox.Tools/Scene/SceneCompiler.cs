@@ -199,14 +199,17 @@ internal static partial class SceneCompiler
 		session.Phase( "Building models" );
 
 		var fragments = new AggregateFragmentInfo[plans.Length][];
-		var vmdls = new byte[plans.Length][];
+		var models = new Model[plans.Length];
 
 		for ( int i = 0; i < plans.Length; i++ )
 		{
 			var build = Build( plans[i] );
 
 			fragments[i] = build.Fragments;
-			vmdls[i] = build.Model.SaveToVmdl();
+			models[i] = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", build.Model.SaveToVmdl() ) );
+			if ( !models[i].IsValid() || models[i].IsError )
+				throw new InvalidOperationException( $"Could not load compiled aggregate model {i}." );
+
 			if ( !plans[i].Translucent )
 				statistics.FragmentCount += build.Fragments.Length;
 
@@ -224,21 +227,10 @@ internal static partial class SceneCompiler
 
 		var physics = await BuildCollision( plan.Collision, plan.Shapes, Step );
 
-		session.Phase( "Writing resources" );
+		session.Phase( "Writing collision" );
 		await Task.Delay( 1, session.Cancel );
 
 		session.Cancel.ThrowIfCancellationRequested();
-
-		var models = new Model[plans.Length];
-
-		for ( int i = 0; i < plans.Length; i++ )
-		{
-			models[i] = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", vmdls[i] ) );
-			if ( !models[i].IsValid() || models[i].IsError )
-				throw new InvalidOperationException( $"Could not load compiled aggregate model {i}." );
-
-			await Step( i + 1, plans.Length );
-		}
 
 		var collision = new PhysicsGroupDescription[physics.Count];
 
