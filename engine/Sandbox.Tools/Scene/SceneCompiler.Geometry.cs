@@ -695,18 +695,22 @@ partial class SceneCompiler
 	/// Concatenate a plan's chunks into the single mesh an aggregate draws from, giving each chunk
 	/// its own draw call so it can be culled and drawn as a fragment.
 	/// </summary>
-	static AggregateBuild Build( AggregatePlan plan )
+	static AggregateBuild Build( AggregatePlan plan, SceneCompileStatistics statistics )
 	{
 		var material = plan.Material;
 		var chunks = plan.Chunks;
 
 		var vertexTotal = 0;
 		var indexTotal = 0;
+		var streams = CompiledStreams.None;
 
 		foreach ( var chunk in chunks )
 		{
 			vertexTotal += chunk.Vertices.Length;
 			indexTotal += chunk.Indices.Length;
+			streams |= chunk.Streams;
+			statistics.VertexCount += chunk.Vertices.Length;
+			statistics.TriangleCount += chunk.Indices.Length / 3;
 		}
 
 		var indices = new int[indexTotal];
@@ -730,13 +734,6 @@ partial class SceneCompiler
 
 		// A stream nothing needs is left out - the renderer feeds a missing semantic the same
 		// default the source had, and the vertex drops from 68 bytes to as few as 48.
-		var streams = CompiledStreams.None;
-
-		foreach ( var chunk in chunks )
-		{
-			streams |= chunk.Streams;
-		}
-
 		switch ( streams )
 		{
 			case CompiledStreams.None:
@@ -809,6 +806,9 @@ partial class SceneCompiler
 
 		// After the sub meshes, because this writes every draw call the mesh has.
 		mesh.UvDensity = UvDensity( chunks, indexTotal );
+
+		if ( !plan.Translucent )
+			statistics.FragmentCount += fragments.Length;
 
 		return new AggregateBuild( Model.Builder.AddMesh( mesh ).Create(), fragments );
 	}

@@ -196,21 +196,12 @@ internal static partial class SceneCompiler
 
 		for ( int i = 0; i < plans.Length; i++ )
 		{
-			var build = Build( plans[i] );
+			var build = Build( plans[i], statistics );
 
 			fragments[i] = build.Fragments;
 			models[i] = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", build.Model.SaveToVmdl() ) );
 			if ( !models[i].IsValid() || models[i].IsError )
 				throw new InvalidOperationException( $"Could not load compiled aggregate model {i}." );
-
-			if ( !plans[i].Translucent )
-				statistics.FragmentCount += build.Fragments.Length;
-
-			foreach ( var chunk in plans[i].Chunks )
-			{
-				statistics.VertexCount += chunk.Vertices.Length;
-				statistics.TriangleCount += chunk.Indices.Length / 3;
-			}
 
 			await Step( i + 1, plans.Length );
 		}
