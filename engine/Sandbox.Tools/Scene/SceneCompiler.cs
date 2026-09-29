@@ -15,12 +15,6 @@ internal static partial class SceneCompiler
 	static bool _running;
 
 	/// <summary>
-	/// Something in the scene we're leaving alone, and why. Kept as the component itself so the
-	/// window can take you to it.
-	/// </summary>
-	internal readonly record struct Skip( Component Component, string Label, string Reason );
-
-	/// <summary>
 	/// What a compile is going to work on, worked out up front so it can be shown before anything
 	/// is built.
 	/// </summary>
@@ -28,10 +22,7 @@ internal static partial class SceneCompiler
 	{
 		public Scene Scene { get; init; }
 		public Asset Asset { get; init; }
-		public string Name { get; init; }
-		public MeshComponent[] Meshes { get; init; }
-		public ModelRenderer[] Props { get; init; }
-		public List<Skip> Skipped { get; init; }
+		public SceneCompileReport Report { get; init; }
 		public bool HasCompileGeometry { get; init; }
 	}
 
@@ -78,16 +69,18 @@ internal static partial class SceneCompiler
 			return null;
 		}
 
-		var skipped = new List<Skip>();
+		var skipped = sources
+			.Where( x => x.Component.Active && x.SkipReason is not null )
+			.Select( x => new SceneCompileSkip( x.Component, x.Label, x.SkipReason ) )
+			.ToArray();
 
 		return new Sources
 		{
 			Scene = scene,
 			Asset = asset,
-			Name = asset is null ? scene.Name : Path.GetFileNameWithoutExtension( asset.AbsolutePath ),
-			Meshes = Gather<MeshComponent>( sources, skipped ),
-			Props = Gather<ModelRenderer>( sources, skipped ),
-			Skipped = skipped,
+			Report = new SceneCompileReport(
+				asset is null ? scene.Name : Path.GetFileNameWithoutExtension( asset.AbsolutePath ),
+				Gather<MeshComponent>( sources ).Count(), Gather<ModelRenderer>( sources ).Count(), Array.AsReadOnly( skipped ) ),
 			HasCompileGeometry = hasCompileGeometry,
 		};
 	}
@@ -166,8 +159,8 @@ internal static partial class SceneCompiler
 	{
 		var outputFolder = $"/compiled/{generation}";
 		var discovered = DiscoverSources( compiled ).ToArray();
-		var meshes = Gather<MeshComponent>( discovered );
-		var props = Gather<ModelRenderer>( discovered );
+		var meshes = Gather<MeshComponent>( discovered ).ToArray();
+		var props = Gather<ModelRenderer>( discovered ).ToArray();
 
 		var frame = FastTimer.StartNew();
 
@@ -230,23 +223,17 @@ internal static partial class SceneCompiler
 		var converted = 0;
 		SceneFile file = null;
 
-		var leftovers = new HashSet<Guid>();
+		var leftovers = compiled.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants )
+			.Where( mesh => !processed.Contains( mesh.Id ) )
+			.ToArray();
 
-		foreach ( var mesh in compiled.Components.GetAll<MeshComponent>( FindMode.EverythingInSelfAndDescendants ) )
+		if ( leftovers.Length > 0 )
 		{
-			if ( !processed.Contains( mesh.Id ) )
-			{
-				leftovers.Add( mesh.Id );
-			}
-		}
-
-		if ( leftovers.Count > 0 )
-		{
-			session.Phase( $"Converting {leftovers.Count} meshes" );
+			session.Phase( $"Converting {leftovers.Length} meshes" );
 			await Task.Delay( 1, session.Cancel );
 
 			converted = await ConvertMeshes( compiled, leftovers, sceneFolder, outputFolder, statistics, Step );
-			processed.UnionWith( leftovers );
+			processed.UnionWith( leftovers.Select( mesh => mesh.Id ) );
 		}
 
 		session.Phase( "Stripping compiled geometry" );
@@ -358,29 +345,11 @@ internal static partial class SceneCompiler
 		return written;
 	}
 
-	/// <summary>
-	/// Everything in the scene we can compile, noting what we're leaving alone and why.
-	/// </summary>
-	static T[] Gather<T>( IEnumerable<Source> sources, List<Skip> skipped = null ) where T : Component
-	{
-		var found = new List<T>();
-
-		foreach ( var source in sources )
-		{
-			if ( source.Component is not T component || !component.Active )
-				continue;
-
-			if ( source.SkipReason is not { } reason )
-			{
-				found.Add( component );
-				continue;
-			}
-
-			skipped?.Add( new Skip( component, source.Label, reason ) );
-		}
-
-		return [.. found];
-	}
+	static IEnumerable<T> Gather<T>( IEnumerable<Source> sources ) where T : Component => sources
+		.Where( x => x.SkipReason is null )
+		.Select( x => x.Component )
+		.OfType<T>()
+		.Where( x => x.Active );
 
 	/// <summary>
 	/// Break every prefab instance holding compiled geometry, so the components we're about to strip

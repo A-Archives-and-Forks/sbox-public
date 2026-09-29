@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using Sandbox;
@@ -333,11 +332,7 @@ public sealed class SceneCompileSession
 		{
 			_sources = SceneCompiler.Scan( Scene, out _scanError );
 			HasCompilation = SceneCompileCache.HasCompilation( _sources?.Asset );
-			if ( _sources is not null )
-			{
-				_sourceReport = new SceneCompileReport( _sources.Name, _sources.Meshes.Length, _sources.Props.Length,
-					Array.AsReadOnly( _sources.Skipped.Select( skip => new SceneCompileSkip( skip.Component, skip.Label, skip.Reason ) ).ToArray() ) );
-			}
+			_sourceReport = _sources?.Report;
 		}
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException )
 		{
@@ -413,7 +408,7 @@ public sealed class SceneCompileSession
 			}
 
 			_settings.Validate();
-			_lines.Add( $"{_sources.Meshes.Length} meshes, {_sources.Props.Length} props to compile" );
+			_lines.Add( $"{_sourceReport.MeshCount} meshes, {_sourceReport.PropCount} props to compile" );
 			Notify();
 			Cancel.ThrowIfCancellationRequested();
 			enteredCompiler = true;
