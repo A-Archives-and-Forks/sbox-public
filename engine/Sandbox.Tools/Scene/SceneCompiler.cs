@@ -28,7 +28,6 @@ internal static partial class SceneCompiler
 	{
 		public Scene Scene { get; init; }
 		public Asset Asset { get; init; }
-		public SceneFolder Folder { get; init; }
 		public string Name { get; init; }
 		public MeshComponent[] Meshes { get; init; }
 		public ModelRenderer[] Props { get; init; }
@@ -73,10 +72,9 @@ internal static partial class SceneCompiler
 			return null;
 		}
 
-		var folder = asset is not null && scene.Editor?.HasUnsavedChanges == false ? scene.Editor.GetSceneFolder() : null;
-		if ( hasCompileGeometry && folder is null )
+		if ( asset is not null && string.IsNullOrEmpty( asset.GetSourceFile( true ) ) )
 		{
-			error = "This scene has nowhere to write its compiled resources.";
+			error = "Save a local copy of this scene before compiling it.";
 			return null;
 		}
 
@@ -86,7 +84,6 @@ internal static partial class SceneCompiler
 		{
 			Scene = scene,
 			Asset = asset,
-			Folder = folder,
 			Name = asset is null ? scene.Name : Path.GetFileNameWithoutExtension( asset.AbsolutePath ),
 			Meshes = Gather<MeshComponent>( sources, skipped ),
 			Props = Gather<ModelRenderer>( sources, skipped ),
@@ -107,6 +104,9 @@ internal static partial class SceneCompiler
 		settings.Validate();
 		var generation = Guid.NewGuid().ToString( "N" );
 		var sourcePath = sources.Asset.GetSourceFile( true );
+		if ( string.IsNullOrEmpty( sourcePath ) )
+			throw new InvalidOperationException( "Save a local copy of this scene before compiling it." );
+
 		_running = true;
 		string[] result = null;
 		Scene compiled = null;
@@ -121,6 +121,8 @@ internal static partial class SceneCompiler
 				throw new InvalidOperationException( "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled." );
 
 			session.Cancel.ThrowIfCancellationRequested();
+			var sceneFolder = scene.Editor.GetSceneFolder()
+				?? throw new InvalidOperationException( "This scene has nowhere to write its compiled resources." );
 			session.Phase( "Copying scene" );
 			var sourceFile = scene.CreateSceneFile();
 
@@ -134,7 +136,7 @@ internal static partial class SceneCompiler
 			}
 
 			SceneCompileCache.BeginGeneration( sources.Asset, generation );
-			result = await Run( sources, compiled, sourceFile.Id, sourcePath, settings, session, generation );
+			result = await Run( sources.Asset, sceneFolder, compiled, sourceFile.Id, sourcePath, settings, session, generation );
 		}
 		finally
 		{
@@ -159,11 +161,9 @@ internal static partial class SceneCompiler
 		return result;
 	}
 
-	static async Task<string[]> Run( Sources sources, Scene compiled, Guid sceneId, string sourcePath,
+	static async Task<string[]> Run( Asset sourceAsset, SceneFolder sceneFolder, Scene compiled, Guid sceneId, string sourcePath,
 		SceneCompilerSettings settings, SceneCompileSession session, string generation )
 	{
-		var sourceAsset = sources.Asset;
-		var sceneFolder = sources.Folder;
 		var outputFolder = $"/compiled/{generation}";
 		var discovered = DiscoverSources( compiled ).ToArray();
 		var meshes = Gather<MeshComponent>( discovered );
