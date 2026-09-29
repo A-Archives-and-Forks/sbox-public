@@ -165,9 +165,6 @@ internal sealed class SceneCompilerWindow : Dialog
 		_wasRunning = session.Running;
 		_displayedLineCount = 0;
 		_log.Clear();
-		_sources = session.Report;
-		_summary = session.Summary;
-		_error = session.Error;
 		BuildReport();
 		RefreshView();
 	}
@@ -200,7 +197,6 @@ internal sealed class SceneCompilerWindow : Dialog
 
 	void RefreshView()
 	{
-		_title.Text = _session.Name;
 		_status.Text = _session.Status switch
 		{
 			"" => _session.Error ?? "Ready to compile",
@@ -210,7 +206,6 @@ internal sealed class SceneCompilerWindow : Dialog
 		};
 		_bar.Visible = _session.Running;
 		_bar.Fraction = _session.Fraction;
-		_bar.Update();
 
 		if ( _displayedLineCount > _session.Lines.Count )
 		{
@@ -224,12 +219,7 @@ internal sealed class SceneCompilerWindow : Dialog
 		_log.ScrollToBottom();
 
 		if ( _sources != _session.Report || _summary != _session.Summary || _error != _session.Error )
-		{
-			_sources = _session.Report;
-			_summary = _session.Summary;
-			_error = _session.Error;
 			BuildReport();
-		}
 
 		UpdateControls();
 	}
@@ -280,6 +270,9 @@ internal sealed class SceneCompilerWindow : Dialog
 		if ( !IsValid )
 			return;
 
+		_sources = _session.Report;
+		_summary = _session.Summary;
+		_error = _session.Error;
 		_lines.Clear();
 		_groups.Clear();
 
@@ -358,12 +351,7 @@ internal sealed class SceneCompilerWindow : Dialog
 	/// </summary>
 	void Flatten()
 	{
-		var items = new List<object>();
-
-		foreach ( var line in _lines )
-		{
-			items.Add( line );
-		}
+		var items = new List<object>( _lines );
 
 		foreach ( var group in _groups )
 		{

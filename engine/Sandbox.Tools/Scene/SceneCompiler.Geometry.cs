@@ -134,8 +134,6 @@ partial class SceneCompiler
 	internal readonly struct GeometryTransform
 	{
 		readonly Transform _transform;
-		readonly Rotation _rotation;
-		readonly Vector3 _scale;
 		readonly Vector3 _normalScale;
 
 		public readonly bool Mirrored;
@@ -143,22 +141,21 @@ partial class SceneCompiler
 		public GeometryTransform( in Transform transform )
 		{
 			_transform = transform;
-			_rotation = transform.Rotation;
-			_scale = transform.Scale;
-			_normalScale = new Vector3( Reciprocal( _scale.x ), Reciprocal( _scale.y ), Reciprocal( _scale.z ) );
+			var scale = transform.Scale;
+			_normalScale = new Vector3( Reciprocal( scale.x ), Reciprocal( scale.y ), Reciprocal( scale.z ) );
 
-			Mirrored = _scale.x * _scale.y * _scale.z < 0.0f;
+			Mirrored = scale.x * scale.y * scale.z < 0.0f;
 
 			static float Reciprocal( float value ) => value == 0.0f ? 0.0f : 1.0f / value;
 		}
 
 		public Vector3 Position( in Vector3 position ) => _transform.PointToWorld( position );
 
-		public Vector3 Normal( in Vector3 normal ) => (_rotation * (normal * _normalScale)).Normal;
+		public Vector3 Normal( in Vector3 normal ) => (_transform.Rotation * (normal * _normalScale)).Normal;
 
 		public Vector4 Tangent( in Vector4 tangent )
 		{
-			var world = (_rotation * (new Vector3( tangent.x, tangent.y, tangent.z ) * _scale)).Normal;
+			var world = (_transform.Rotation * (new Vector3( tangent.x, tangent.y, tangent.z ) * _transform.Scale)).Normal;
 			return new Vector4( world, Mirrored ? -tangent.w : tangent.w );
 		}
 
