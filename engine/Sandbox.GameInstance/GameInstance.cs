@@ -210,7 +210,8 @@ internal class GameInstance : IGameInstance
 			throw new Exception( $"Package {Ident} is not a game" );
 		}
 
-		var achievementTask = _package.GetAchievements();
+		// Starts the backend fetch. The game doesn't wait for it: unlocks asked for before it lands are queued.
+		_ = _package.GetAchievements();
 
 		Log.Trace( $"Install Async {Package.Title}" );
 		LoadingScreen.Title = $"Installing {Package.Title}";
@@ -316,13 +317,6 @@ internal class GameInstance : IGameInstance
 		{
 			Log.Trace( $"Loading GameResources" );
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
-		}
-
-		if ( !achievementTask.IsCompleted )
-		{
-			LoadingScreen.Title = $"Loading Achievements";
-			Api.Activity.LoadStage( "achievements" );
-			await achievementTask;
 		}
 
 		LoadingScreen.Title = $"Loading Fonts";
