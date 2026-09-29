@@ -789,6 +789,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			{
 				Api.Activity.LoadStage( "scene" );
 
+				// The scene loads synchronously, so the title shown until it returns is whatever the last frame drew
+				LoadingScreen.Title = "Loading Scene";
+				await Task.Yield();
+
 				if ( !gameInstance.OpenStartupScene() )
 				{
 					throw new Exception( "Failed to load startup scene" );
