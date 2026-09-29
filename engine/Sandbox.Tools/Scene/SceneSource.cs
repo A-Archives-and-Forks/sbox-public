@@ -19,17 +19,27 @@ internal static class SceneSource
 		return asset;
 	}
 
+	internal static string ReadJson( string path )
+	{
+		var json = File.ReadAllText( path );
+		if ( !json.StartsWith( '<' ) )
+			return json;
+
+		var kv = NativeEngine.EngineGlue.LoadKeyValues3( json );
+		try
+		{
+			return NativeEngine.EngineGlue.KeyValues3ToJson( kv.FindOrCreateMember( "data" ) );
+		}
+		finally
+		{
+			kv.DeleteThis();
+		}
+	}
+
 	internal static SceneFile LoadForEditing( Asset asset )
 	{
 		var path = asset.GetSourceFile( true );
-		var json = File.ReadAllText( path );
-		if ( json.StartsWith( '<' ) )
-		{
-			var kv = NativeEngine.EngineGlue.LoadKeyValues3( json );
-			json = NativeEngine.EngineGlue.KeyValues3ToJson( kv.FindOrCreateMember( "data" ) );
-			kv.DeleteThis();
-		}
-
+		var json = ReadJson( path );
 		var blobPath = path + "_d";
 		var blobs = File.Exists( blobPath ) ? File.ReadAllBytes( blobPath ) : [];
 		return SceneFile.FromSource( asset.Path, asset.Guid, json, blobs );
@@ -76,12 +86,13 @@ internal static class SceneSource
 		if ( session.CompilationDirty )
 			return true;
 
-		var asset = FindAsset( session.Scene.Source as SceneFile );
+		var file = session.Scene.Source as SceneFile;
+		var asset = FindAsset( file );
 		if ( asset is null || !SceneCompileCache.HasCompilation( asset ) )
 			return true;
 
 		options = new SceneLoadOptions();
-		options.SetScene( session.Scene.Source as SceneFile );
+		options.SetScene( file );
 		return options.PrepareRuntime();
 	}
 }

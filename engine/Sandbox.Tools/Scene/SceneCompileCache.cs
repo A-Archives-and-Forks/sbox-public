@@ -192,24 +192,8 @@ internal static class SceneCompileCache
 			&& (compilation.Outputs.ContainsKey( name ) || !File.Exists( path ) && compilation.Outputs.ContainsKey( name + "_c" ));
 	}
 
-	static JsonNode ReadSourceJson( string path )
-	{
-		var json = File.ReadAllText( path );
-		if ( json.StartsWith( '<' ) )
-		{
-			var kv = NativeEngine.EngineGlue.LoadKeyValues3( json );
-			try
-			{
-				json = NativeEngine.EngineGlue.KeyValues3ToJson( kv.FindOrCreateMember( "data" ) );
-			}
-			finally
-			{
-				kv.DeleteThis();
-			}
-		}
-
-		return JsonNode.Parse( json, default, new JsonDocumentOptions { MaxDepth = 512, CommentHandling = JsonCommentHandling.Skip } );
-	}
+	static JsonNode ReadSourceJson( string path ) => JsonNode.Parse( SceneSource.ReadJson( path ), default,
+		new JsonDocumentOptions { MaxDepth = 512, CommentHandling = JsonCommentHandling.Skip } );
 
 	static string CompiledPath( string source )
 	{
