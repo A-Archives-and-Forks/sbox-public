@@ -68,18 +68,18 @@ internal sealed class SceneCompilePublication( bool sourcePackage = false )
 		return AssetSystem.FindByPath( file.AbsolutePath ) ?? AssetSystem.FindByPath( absolutePath ) ?? AssetSystem.FindByPath( path );
 	}
 
-	internal IReadOnlyList<ProjectFile> PrepareFiles( ProjectFile file )
+	internal bool IncludeFile( ProjectFile file )
 	{
 		if ( !SceneCompileCache.ShouldPublishFile( file.AbsolutePath, sourcePackage ) )
-			return [];
+			return false;
 
 		if ( file.Contents is null && !File.Exists( file.AbsolutePath ) )
-			return [file];
+			return true;
 
 		if ( !sourcePackage )
 			Capture( FindScene( file ) );
 
-		return [file];
+		return true;
 	}
 
 	static void ValidateFile( string name, string path, int size, string hash )

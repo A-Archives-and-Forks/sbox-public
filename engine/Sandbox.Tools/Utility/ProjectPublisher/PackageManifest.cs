@@ -503,31 +503,28 @@ public partial class ProjectPublisher
 
 		private async Task AddFile( ProjectFile file )
 		{
-			foreach ( var entry in _sceneCompiles.PrepareFiles( file ) )
+			if ( !_sceneCompiles.IncludeFile( file ) || FindAsset( file.Name ) is not null )
+				return;
+
+			if ( file.Contents is null && !File.Exists( file.AbsolutePath ) )
 			{
-				if ( FindAsset( entry.Name ) is not null )
-					continue;
-
-				if ( entry.Contents is null && !File.Exists( entry.AbsolutePath ) )
-				{
-					Errors.Add( $"File not found \"{entry.AbsolutePath}\" ({entry.Name})" );
-					continue;
-				}
-
-				await Task.Run( async () =>
-				{
-					using Stream stream = entry.Contents is not null ? new MemoryStream( entry.Contents ) : File.OpenRead( entry.AbsolutePath );
-					entry.Size = checked((int)stream.Length);
-					entry.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
-				} );
-
-				// Another add may have completed while this file was being hashed.
-				if ( FindAsset( entry.Name ) is not null )
-					continue;
-
-				scannedBytes += (ulong)entry.Size;
-				Assets.Add( entry );
+				Errors.Add( $"File not found \"{file.AbsolutePath}\" ({file.Name})" );
+				return;
 			}
+
+			await Task.Run( async () =>
+			{
+				using Stream stream = file.Contents is not null ? new MemoryStream( file.Contents ) : File.OpenRead( file.AbsolutePath );
+				file.Size = checked((int)stream.Length);
+				file.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
+			} );
+
+			// Another add may have completed while this file was being hashed.
+			if ( FindAsset( file.Name ) is not null )
+				return;
+
+			scannedBytes += (ulong)file.Size;
+			Assets.Add( file );
 		}
 
 		/// <summary>
