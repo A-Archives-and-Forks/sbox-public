@@ -217,6 +217,7 @@ internal class GameInstance : IGameInstance
 		LoadingScreen.Title = $"Installing {Package.Title}";
 		Api.Activity.LoadStage( "install" );
 		LoadingScreen.Media = Package.LoadingScreen.MediaUrl;
+		LoadingScreen.Package = Package;
 
 		var identWithVersion = Package.FullIdent;
 
