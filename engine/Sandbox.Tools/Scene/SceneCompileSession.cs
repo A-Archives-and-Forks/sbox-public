@@ -32,10 +32,7 @@ public sealed class SceneCompileSession
 	bool _unsaved;
 	bool _playing;
 	bool _notifying;
-	bool _compileOnSave;
 	bool _savedCompilationDirty;
-	Scene _queuedScene;
-	string _queuedPath;
 	CancellationTokenSource _cancel = new();
 	FastTimer _elapsed;
 	FastTimer _phaseElapsed;
@@ -156,27 +153,6 @@ public sealed class SceneCompileSession
 	}
 
 	/// <summary>
-	/// Compile after saving the active scene. Disabled by default and saved immediately in scene metadata.
-	/// </summary>
-	public bool CompileOnSave
-	{
-		get => _compileOnSave;
-		set
-		{
-			if ( Running || Game.IsPlaying || !Scene.IsValid() || string.IsNullOrEmpty( _path )
-				|| Scene.Source?.ResourcePath != _path
-				|| SceneEditorSession.Active is not { IsPrefabSession: false } active || active.Scene != Scene )
-				throw new InvalidOperationException( "Open a saved scene outside play mode to change compile on save." );
-
-			SceneCompilerSettings.SaveCompileOnSave( AssetSystem.FindByPath( _path ), value );
-			_compileOnSave = value;
-			if ( !value )
-				ClearQueuedCompile();
-			Notify();
-		}
-	}
-
-	/// <summary>
 	/// Reset the draft recipe to built-in defaults without saving it.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">A compile is running.</exception>
@@ -207,48 +183,13 @@ public sealed class SceneCompileSession
 	[EditorEvent.Frame]
 	void FollowActiveScene()
 	{
-		var scene = SceneEditorSession.Active?.Scene;
-		if ( _queuedScene is not null && (Game.IsPlaying || !_queuedScene.IsValid()
-			|| scene != _queuedScene || scene.Source?.ResourcePath != _queuedPath) )
-			ClearQueuedCompile();
-
 		if ( Running )
 			return;
 
+		var scene = SceneEditorSession.Active?.Scene;
 		if ( scene != Scene || scene?.Source?.ResourcePath != _path
 			|| (scene?.Editor?.HasUnsavedChanges ?? false) != _unsaved || Game.IsPlaying != _playing )
 			Refresh();
-
-		if ( _queuedScene is null )
-			return;
-
-		ClearQueuedCompile();
-		if ( CompileOnSave && EligibilityError() is null )
-			_ = StartAsync();
-	}
-
-	[Event( "scene.saved" )]
-	void OnSceneSaved( Scene scene )
-	{
-		if ( Game.IsPlaying || !scene.IsValid() || scene.Editor?.HasUnsavedChanges != false
-			|| SceneEditorSession.Active is not { IsPrefabSession: false } active || active.Scene != scene )
-			return;
-
-		var path = scene.Source?.ResourcePath;
-		Refresh();
-		try
-		{
-			if ( !SceneCompilerSettings.LoadCompileOnSave( AssetSystem.FindByPath( path ) ) )
-				return;
-		}
-		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException )
-		{
-			Log.Error( e, "Could not read compile on save setting" );
-			return;
-		}
-
-		_queuedScene = scene;
-		_queuedPath = path;
 	}
 
 	internal void OnSceneEdited( Scene scene )
@@ -257,12 +198,6 @@ public sealed class SceneCompileSession
 			return;
 
 		Refresh();
-	}
-
-	void ClearQueuedCompile()
-	{
-		_queuedScene = null;
-		_queuedPath = null;
 	}
 
 	/// <summary>
@@ -304,14 +239,11 @@ public sealed class SceneCompileSession
 			HasCompilation = false;
 			ClearResult();
 			_settings = new();
-			_compileOnSave = false;
 
 			try
 			{
 				var asset = path is null ? null : AssetSystem.FindByPath( path );
 				_settings = SceneCompilerSettings.Load( asset );
-				if ( scene is not PrefabScene )
-					_compileOnSave = SceneCompilerSettings.LoadCompileOnSave( asset );
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException )
 			{
@@ -376,7 +308,6 @@ public sealed class SceneCompileSession
 		}
 
 		// Lock before notifications or pumping can re-enter through another compile control.
-		ClearQueuedCompile();
 		Running = true;
 		_cancel.Dispose();
 		_cancel = new();
@@ -439,7 +370,6 @@ public sealed class SceneCompileSession
 	/// </summary>
 	public void RequestCancel()
 	{
-		ClearQueuedCompile();
 		if ( !Running || Cancelling )
 			return;
 
@@ -527,12 +457,6 @@ public sealed class SceneCompileSession
 		_lines.Add( $"{title} in {duration.TotalSeconds:n2}s" );
 		Running = false;
 
-		if ( title == "Cancelled" && _queuedScene == Scene )
-		{
-			Notify();
-			return;
-		}
-
 		// The callback owns a snapshot: changing the active scene must not redirect an old toast.
 		var report = CreateReportSnapshot();
 		var detail = title switch
@@ -559,7 +483,6 @@ public sealed class SceneCompileSession
 			Name = Name,
 			_path = _path,
 			_settings = _settings,
-			_compileOnSave = _compileOnSave,
 			_settingsError = _settingsError,
 			_scanError = _scanError,
 			_failure = _failure,

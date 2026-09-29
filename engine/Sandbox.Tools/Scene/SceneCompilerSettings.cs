@@ -9,13 +9,6 @@ namespace Editor;
 internal sealed record SceneCompilerSettings
 {
 	internal const string MetadataProperty = "sceneCompileSettings";
-	internal const string CompileOnSaveProperty = "sceneCompileOnSave";
-
-	internal static bool LoadCompileOnSave( Asset asset ) =>
-		asset is not null && SceneCompileCache.ReadSetting( asset, CompileOnSaveProperty )?.Deserialize<bool>() == true;
-
-	internal static void SaveCompileOnSave( Asset asset, bool value ) =>
-		SceneCompileCache.WriteSetting( asset, CompileOnSaveProperty, JsonSerializer.SerializeToNode( value ) );
 
 	/// <summary>
 	/// What an extra aggregate costs, in fragments, when deciding whether to split geometry into
