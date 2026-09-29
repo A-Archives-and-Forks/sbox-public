@@ -19,7 +19,8 @@ partial class SceneCompiler
 	/// tags from their parents and compiled geometry leaves that hierarchy behind, so shapes can only
 	/// share a resource with shapes tagged the same.
 	/// </summary>
-	static async Task<List<(string Tags, byte[] Data)>> BuildCollision( CollisionChunk[] chunks, CollisionShape[] shapes, Func<int, int, Task> step )
+	static async Task<List<(string Tags, PhysicsGroupDescription Physics)>> BuildCollision( CollisionChunk[] chunks, CollisionShape[] shapes,
+		SceneFolder folder, string outputFolder, Func<int, int, Task> step )
 	{
 		var groups = new Dictionary<string, CollisionGroup>();
 
@@ -33,14 +34,19 @@ partial class SceneCompiler
 			Group( groups, shape.Tags ).Add( shape );
 		}
 
-		var result = new List<(string, byte[])>( groups.Count );
+		var result = new List<(string, PhysicsGroupDescription)>( groups.Count );
 		var built = 0;
 
 		foreach ( var (tags, group) in groups )
 		{
 			if ( group.Build() is { } data )
 			{
-				result.Add( (tags, data) );
+				var index = result.Count;
+				var physics = PhysicsGroupDescription.Load( Write( folder, $"{outputFolder}/collision_{index}.vphys_c", data ) );
+				if ( physics is null )
+					throw new InvalidOperationException( $"Could not load compiled collision resource {index}." );
+
+				result.Add( (tags, physics) );
 			}
 
 			await step( ++built, groups.Count );

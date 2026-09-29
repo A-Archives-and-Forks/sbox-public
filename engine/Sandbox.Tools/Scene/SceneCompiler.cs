@@ -225,23 +225,7 @@ internal static partial class SceneCompiler
 		session.Phase( "Building collision" );
 		await Task.Delay( 1, session.Cancel );
 
-		var physics = await BuildCollision( plan.Collision, plan.Shapes, Step );
-
-		session.Phase( "Writing collision" );
-		await Task.Delay( 1, session.Cancel );
-
-		session.Cancel.ThrowIfCancellationRequested();
-
-		var collision = new PhysicsGroupDescription[physics.Count];
-
-		for ( int i = 0; i < physics.Count; i++ )
-		{
-			collision[i] = PhysicsGroupDescription.Load( Write( sceneFolder, $"{outputFolder}/collision_{i}.vphys_c", physics[i].Data ) );
-			if ( collision[i] is null )
-				throw new InvalidOperationException( $"Could not load compiled collision resource {i}." );
-
-			await Step( i + 1, physics.Count );
-		}
+		var collision = await BuildCollision( plan.Collision, plan.Shapes, sceneFolder, outputFolder, Step );
 
 		var converted = 0;
 		SceneFile file = null;
@@ -285,7 +269,7 @@ internal static partial class SceneCompiler
 
 			// Nothing under here is meant to be touched by hand - the next compile throws it all
 			// away and builds it again, so keep it out of the hierarchy and out of selection.
-			if ( plans.Length > 0 || collision.Length > 0 )
+			if ( plans.Length > 0 || collision.Count > 0 )
 			{
 				root = compiled.CreateObject();
 				root.Name = "World";
@@ -322,16 +306,16 @@ internal static partial class SceneCompiler
 				renderer.Fragments = fragments[i].ToList();
 			}
 
-			for ( int i = 0; i < collision.Length; i++ )
+			for ( int i = 0; i < collision.Count; i++ )
 			{
 				var go = compiled.CreateObject();
 				go.Name = $"Collision {i}";
 				go.SetParent( root );
 				go.Flags |= GameObjectFlags.Hidden;
-				ApplyTags( go, physics[i].Tags );
+				ApplyTags( go, collision[i].Tags );
 
 				var collider = go.AddComponent<PhysicsCollider>();
-				collider.Physics = collision[i];
+				collider.Physics = collision[i].Physics;
 				collider.Static = true;
 			}
 
@@ -354,7 +338,7 @@ internal static partial class SceneCompiler
 
 		if ( translucent > 0 ) summary.Add( $"{translucent:n0} translucent {(translucent == 1 ? "model" : "models")}" );
 		if ( converted > 0 ) summary.Add( $"{converted:n0} converted {(converted == 1 ? "mesh" : "meshes")}" );
-		if ( collision.Length > 0 ) summary.Add( $"{collision.Length:n0} collision {(collision.Length == 1 ? "group" : "groups")}" );
+		if ( collision.Count > 0 ) summary.Add( $"{collision.Count:n0} collision {(collision.Count == 1 ? "group" : "groups")}" );
 
 		return [.. summary];
 	}
