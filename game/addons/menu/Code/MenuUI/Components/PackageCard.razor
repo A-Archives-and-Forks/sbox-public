@@ -112,7 +112,7 @@
 	const float VideoActivationDelay = 0.3f;
 	bool showVideo;
 	float? videoRequestedAt;
-	float? hoverStartedAt;
+	RealTimeSince? hoverStartedAt;
 
 	bool WantsVideo() => AlwaysPlayVideo || HasHovered || (VideoThumbs && (Rotation is null || Rotation.IsPlaying( this )));
 	bool ShowVideo() => showVideo;
@@ -146,17 +146,30 @@
 		}
 	}
 
+	protected override void OnMouseMove(MousePanelEvent e)
+	{
+		base.OnMouseMove(e);
+
+		hoverStartedAt ??= 0;
+	}
+
+	protected override void OnMouseOut(MousePanelEvent e)
+	{
+		base.OnMouseOut(e);
+
+		hoverStartedAt = null;
+	}
+
 	void TickHoverPreview()
 	{
-		if ( !HoverPreview || Size == SizeType.List || Package is null || !HasHovered )
+		if ( hoverStartedAt is null ) return;
+
+		if ( !HoverPreview || Size == SizeType.List || Package is null )
 		{
-			hoverStartedAt = null;
 			return;
 		}
 
-		hoverStartedAt ??= RealTime.Now;
-
-		if ( RealTime.Now - hoverStartedAt.Value >= HoverPreviewDelay )
+		if ( hoverStartedAt.Value > HoverPreviewDelay )
 			PackageHoverCard.Show( this, Package, PlayingVideoUrl );
 	}
 

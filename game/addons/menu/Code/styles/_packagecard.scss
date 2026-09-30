@@ -141,6 +141,7 @@ PackageCard
 		bottom: 0;
 		background-size: cover;
 		background-position: center;
+		pointer-events: none;
 
 		// The still art is underneath, so fading crossfades into it instead of cutting.
 		opacity: 1;
